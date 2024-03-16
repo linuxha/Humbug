@@ -30,7 +30,7 @@
 ; | INCH   | E078 | Points to INEEE                                        |            |
 ; | PDATA1 | E07E | Print a text string pointed to be X                    |            |
 ; | INHEX  | E0AA | Input a hex digit into A                               |            |
-; | OUT2CH | E0BF | Output two hex digits pointed to by X                  |            |
+; | OUT2CH | E0BF | Output two hex digits pointed to by X                  |            | ???  |
 ; | OUT4HS | E0C8 | Output four hex digits pointed to by X followed by SPC |            |
 ; | OUT2HS | E0CA | Output two hex digits pointed to by X followed by SPC  |            |
 ; | OUTS   | E0CC | Print a SPC                                            |            | FD6D |
@@ -235,11 +235,56 @@ STACK   RMB     1               ;* Top of RAM (6810 @ $D000)
 
 ; ===========================================================================
         ;;* E0ROM Entry Vectors
-        org     $E000
+        ORG     $E000
 CINITV  jmp     CINIT           ;* Cold start initialization
+;
+        ORG     $E006
+COMNDV  jmp     COMAND          ;* Command Entry point
+;
+; ===========================================================================
+        ;;* $E009 - 14 Pg 181R
+        ORG     $E009           ;*
+FROMTOV jmp     FROMTO          ;* From-To subroutine Entry
+
 ;
 ; Not empty space (yikes)
 ;
+; ===========================================================================
+        ;;* $E0D3 - 14 Pg 181R
+        ORG     $E0D3
+HEXDMP  jsr     FROMTO          ;*
+        ldx     BEGA            ;* Save starting address
+        stx     USAVEX          ;* Save duplicate
+        bra     HEXCON          ;* And skip over next vector
+;;;* Free to E0E2 (5)
+        fcc     '\0\0\0\0\0'
+;;;*
+        ORG     $E0E3
+EOE3    jmp     WARMST          ;* Vector to FCROM
+;;;* Continuation of hex dump
+HEXCON  ldaa    USAVEX+1        ;*
+        anda    #$F0            ;* Round down to next 0
+        staa    USAVEX+1        ;*
+HEX     jsr     CRLF            ;*
+        ldx     #USAVEX         ;* Get location of starting ADDR
+        jsr     OUT4HS          ;* Print it
+        jsr     OUTS            ;* Extra space
+        ldab    #16             ;* Set counter to 16 ($10)
+        ldx     USAVEX          ;*
+HEX1    jsr     OUT2HS          ;* Print next byte
+        dex                     ;* backup pointer
+        cpx     ENDA            ;* last address
+        bne     HEX2            ;* continue if not
+        rts                     ;* Otherwise end
+
+HEX2    inx                     ;* Restore pointer
+        decb                    ;* decremtn counter
+        bne     HEX1            ;* continue line if not finished
+        stx     USAVEX          ;* Save current pointer
+        bra     HEX             ;* get ready for next line ($E110)
+
+; ===========================================================================
+        ;;* $E1AC
         ORG     $E1AC           ;* Vector to FCROM
         ;;
 CINITV0 jmp     CINIT           ;* E0ROM Cold start initialization
@@ -257,7 +302,7 @@ CMORE8  jmp     $E800           ;* Yes, Go initialize second ROM
 
 ; ===========================================================================
         ;;* $E094 14 pg 179 R
-COMNDV  jmp     COMAND          ;* Command Entry point
+	ORG     $E20F
 COMAND  psha                    ;* Save first character
         ldx     #COMTAB-4       ;* Set addr of command table
 LOOKUP  inx
@@ -320,12 +365,7 @@ TABEND  EQU     *
 
 ; ===========================================================================
         ;;*
-; ===========================================================================
-        ;;* $E009 - 14 Pg 181R
-        ORG     $E009           ;*
-FROMTOV jmp     FROMTO          ;* From-To subroutine Entry
-
-        org     $E270           ;*
+        ORG     $E270           ;*
 ;;;* FROMTO subroutine - Init BEGA and ENDA addesses
 FROMTO  ldx     #FROMST         ;*
         jsr     PDATA           ;* Print "FROM "
@@ -362,37 +402,291 @@ SONOTS  ins                     ;* Invalid digit; Increment SP to bypass
         rts                     ;* ... above (to hotstart)
 
 ; ===========================================================================
-        ;;* $E0D3 - 14 Pg 181R
-        ORG     $E0D3
-HEXDMP  jsr     FROMTO          ;*
-        ldx     BEGA            ;* Save starting address
-        stx     USAVEX          ;* Save duplicate
-        bra     HEXCON          ;* And skip over next vector
-;;;* Free to E0E2 (5)
-        fcc     '\0\0\0\0\0'
-;;;*    ORG     $E0E3
-EOE3    jmp     WARMST          ;* Vector to FCROM
-;;;* Continuation of hex dump
-HEXCON  ldaa    USAVEX+1        ;*
-        anda    #$F0            ;* Round down to next 0
-        staa    USAVEX+1        ;*
-HEX     jsr     CRLF            ;*
-        ldx     #USAVEX         ;* Get location of starting ADDR
-        jsr     OUT4HS          ;* Print it
-        jsr     OUTS            ;* Extra space
-        ldab    #16             ;* Set counter to 16 ($10)
+        ;;* E305 14 Pg 183R
+        ORG     $E305
+FIND    ldx     #MANYST         ;* ($E0AB)
+        jsr     PDATA           ;* Ask "How many btyes"
+        jsr     INEEE           ;* Get a number
+        suba    #$30            ;* Convert from ASCII
+        beq     FIND5           ;* if = 0
+        bmi     FIND5           ;* if < 0
+        cmpa    #$03            ;*
+        bgt     FIND5           ;* If > 3
+        staa    FINDNO          ;* store number of bytes ($D025)
+        jsr     OUTS            ;*
+        ldx     #WHATST         ;* ($E1EA)
+        jsr     PDATA           ;* Ask "What bytes"
+        ldx     #WHAT           ;* ($D025)
+FIENRT  pshb                    ;*
+        jsr     BYTE            ;* Enter a byte
+        pulb                    ;* Restore counter
+        staa    0,X             ;* Store it
+        inx                     ;*
+        decb                    ;*
+        bne     FIENTR          ;* Enter more, if needed
+        jsr     FROMTO          ;* Get BEGA and ENDA
+        ldx     BEGA            ;* Get ready to look
+FIND1   ldab    FONDNO          ;* Main find loop ($D025)
+        ldaa    0,X             ;* Get first byte
+        cmpa    WHAT            ;*
+        bne     FIND4           ;* Wrong byte
+        decb                    ;*
+        beq     FIND2           ;* Found one correct byte
+        ldaa    1,X             ;* Get second byte
+        cmpa    WHAT+1          ;*
+        bne     FIND4           ;* Wrong
+        decb                    ;*
+        beq     FIND2           ;* Found two correct bytes
+        ldaa    2,x             ;* Get tird byte
+        cmpa    WHAT+2          ;*
+        bne     FIND4           ;* Wrong byte
+FIND2   stx     USAVEX          ;* Found correct bytes
+        bsr     FIND5           ;* Print CRLF via vector at FIND5
+        ldx     #USAVEX         ;* Point to address where found ($D020)
+        jsr     OUT4HS          ;* Print it -
+        jsr     OUTS            ;* One more space
         ldx     USAVEX          ;*
-HEX1    jsr     OUT2HS          ;* Print next byte
-        dex                     ;* backup pointer
-        cpx     ENDA            ;* last address
-        bne     HEX2            ;* continue if not
-        rts                     ;* Otherwise end
+        dex                     ;* backup one byte
+        ldab    #$04            ;* Ready to print 4 bytes
+FIND3   jsr     OUT2HS          ;* Print byte
+        decb                    ;*
+        bne     FIND3           ;* Print four bytes
+        ldx     USAVEX          ;* Restire X
+FIND4   cpx     ENDA            ;* See if doine
+        beq     FIND5           ;* Yes
+        inx                     ;* No
+        bra     FIND1           ;* Keep looking
+FIND5   jmp     CRLF            ;* Do last CRLF nd return to FCROM when done ($E37E)
+; ==============================================================================
+        ;;* $E381 14 Pg 184R
+;;;* "FN" Command - Fill memory with constant
+        ORG     $E381
+FILL    jsr     FROMTO          ;* Get From-To addresses
+        ldx     #WITHST         ;* ($E1C5)
+        jsr     PDATA           ;* Ask for data
+        jsr     BYTE            ;*
+        ldx     BEGA            ;* Get starting address
+        dex                     ;*
+FILOOP  inx                     ;*
+        staa    0,X             ;* Store the byte
+        cpx     ENDA            ;* See if done
+        bne     FILOOP          ;* Contiune of No
+        rts                     ;* Quit when Done ($E399)
+; ==============================================================================
+        ;;* $E39A 14 Pg 184R
+        ORG     $E39A
+;;;* SUM - Memory Checksum
+SUM     jsr     FROMTO          ;* Get address limits
+        ldx     BEGA            ;* Get start address
+        clr     A               ;*
+        clr     B               ;*
+SUMLP   adda    0,X             ;* Add to checksum
+        adca    #0              ;* Also add carry to second byte
+        cpx     ENDA            ;* Last address?
+        beq     SUMDON          ;* Yes
+        inx                     ;* No, So increment and
+        bra     SUMLP           ;*
+DUMDON  staa    USAVEX          ;* Store SUM when done
+        stab    USAVEX+1        ;*
+        ldx     #USAVEX         ;* Point to Checksum
+VEC4HS  jmp     OUT4HS          ;* Output checksum and return when done $(E3B7)
 
-HEX2    inx                     ;* Restore pointer
-        decb                    ;* decremtn counter
-        bne     HEX1            ;* continue line if not finished
-        stx     USAVEX          ;* Save current pointer
-        bra     HEX             ;* get ready for next line ($E110)
+; ===========================================================================
+        ;;* E4ROM Entry Vectors
+        ORG     $E400
+CINITV4 jmp     CINIT4          ;* Cold start initialization
+;;* CINIT4 - Cold Start Initialization
+;;* Check whether this is powerup or reset of system
+CINIT4  ldx     #$1234          ;* Check power-up locations
+        cmpx    POWUP           ;*
+        bne     PUP             ;*
+        cpx     POWUP+2         ;*
+        beq     xRESET          ;*
+;;;* Initial power up sequence
+PUP     ldx     #BKRETM         ;* Initialize Breakpoint ISS addresses
+        stx     SWIJMP          ;*
+        ldx     #$1234          ;*
+        stx     POWUP           ;*
+        stx     POWUP+2         ;* Initialize POWUP flag
+        ldaa    #$FF            ;*
+        ldab    $$12            ;*
+BKERAS  staa    0,X             ;* Erase Break points table
+        inx                     ;*
+        decb                    ;*
+        bne     BKERAS          ;* Repeat if not finished
+;;;* See if other ROMs require initialization
+xRESET  ldaa    $E800           ;* Check next ROM
+        cmpa    #JMPINST        ;* Is there a jump?
+        beq     CMORE4b         ;*
+        ldaa    $EC00           ;* Check the ROM after that
+        cmpa    #JMPINST        ;* Is there a jump?
+        beq     CMORE8b         ;*
+        rts                     ;* No, return to FCROM
+CMORE4b jmp     $E800           ;* Yes, go initialize
+CMORE8b jmp     $EC00           ;* Yes, go initialize second ROM
+
+; ===========================================================================
+        ;;* $E4B6 14 Pg 186R
+	ORG     $E4B6
+;;;* 'DE' Command - Desembler dump
+DESEMB  jsr     FROMTO          ;* Ask for addresses
+        ldx     BEGA            ;*
+        stx     SAVEX           ;*
+DES2    jsr     PRNTOP          ;* Go to print current line
+        ldaa    ENDA            ;* Subtract next FROM last
+        ldab    ENDA+1          ;*
+        subd    SAVEX+1         ;*
+        sbca    SAVEX           ;*
+        bcc     DES2            ;* Return if NEXT <= LAST
+        rts                     ;* otherwise exit
+;;;* PRNTOP - subroutine to print address and current instruption
+PRNTOP  jsr     CRLF            ;*
+        ldx     #SAVEX          ;* Get location of next address
+        jsr     OUT4HS          ;* Print it
+        jsr     OUTS            ;*
+        ldx     SAVEX           ;* Get address of instruction
+        ldaa    0,X             ;* Get operation code
+        staa    INSTR           ;* Save it
+        jsr     OUT2HS          ;* Print it
+        stx     SAVEX           ;* Increment SAVEX
+        clr     B               ;* Byte counter
+        ldaa    INSTR           ;*
+        cmpa    #$8C            ;* Analyze Op code for nu of bytes
+        beq     LENTH3          ;*
+        cmpa    #$8E            ;*
+        beq     LENTH3          ;*
+        cmpa    #$CE            ;*
+        beq     LENTH3          ;*
+        anda    #$F0            ;*
+        cmpa    #$20            ;*
+        beq     LENTH2          ;*
+        cmpa    #$60            ;*
+        beq     LENTH1          ;*
+        anda    #$30            ;*
+        cmpa    #$30            ;*
+        bne     LENTH2          ;*
+LENTH3  inc     B               ;* 3-Byte: 8C, 8E, CE, 7x, Bx, Fx
+LENTH2  inc     B               ;* 2-Byte: 2x, 6x, 8x, 9x, Ax, Cx, Dx, Ex
+LENTH1  inc     B               ;* 1-Byte: 1x, 3x, 4x, 5x
+        nop                     ;*
+        nop                     ;*
+        beq     POP3            ;*
+        dec     COUNT           ;* ($D046)
+        beq     POP1            ;*
+        jsr     OUT4HS          ;* Print 2 bytes
+        bra     POP2            ;*
+POP1    jsr     OUT2HS          ;* Print One byte
+POP2    stx     SAVEX           ;* Increment next
+POP3    RTS                     ;* ($E524)
+
+; ===========================================================================
+	;;* $E525 14 Pg 184L
+        ;;* E4ROM Entry Vectors
+        ORG     $E525
+;;;* 'AI' Command - ASCII Input routine
+ASCIN   jsr     FROMTO          ;* Get address Range
+        jsr     CRLF            ;*
+        ldx     ENDA            ;* Get Last empty address
+        stx     SAVEX           ;* Save it
+        ldx     BEGA            ;* Get starting address
+        dex
+ASCIN2  inx                     ;*
+        jsr     INEEE           ;* Get next character
+        staa    0,X             ;* Store it
+        cmpa    0,X             ;* See if it stored OK
+        bne     ASCIN3          ;*
+        stx     ENDA            ;* Store Ending address
+        cpx     SAVEX           ;* Check if Run out of memory
+        bne     ASCIN2          ;* No, so get more
+ASCIN3  ldx     #ESTR           ;* Mem full or bad, so ...
+        jsr     PDATA           ;* Print error
+        bra     ASCIN3          ;* Go to repeat
+;
+ESTR    FCC     ' Error\4'      ;* ($E54F)
+; ===========================================================================
+	;;* $E556 14 Pg 184L
+        ORG     $E556           ;*
+;;;* 'AO' Command - ASCII Output routine
+ASCOUT  jsr     FROMTO          ;* Get addres range
+        jsr     CRLF            ;*
+        ldx     BEGA            ;* Get starting address
+ASCO2   ldaa    0,X             ;* Get next character
+        jsr     OUTEEE          ;* Output it
+        cpx     ENDA            ;* See if done
+        beq     ASC03           ;* Yes
+        inx                     ;*
+        bra     ASCO2           ;* Repeat if not
+ASC03   rts                     ;* Return when done
+;
+; Fill in here?
+;
+; ===========================================================================
+	;;* $E56D 14 Pg 184R
+; ===========================================================================
+        ;;* E4ROM Entry Vectors
+        ORG     $E56D
+OLDSTR  FCC     'Enter old addresses:\4'
+NEWSTR  FCC     'Enter new address: \4'
+;
+        ORG     $E597
+MOVE    ldx     #OLDSTR         ;*
+        jsr     PDATA           ;* Ask for old addresses
+        jsr     FROMTO          ;*
+        jsr     CRLF            ;*
+        ldx     #NEWSTR         ;*
+        jsr     PDATA           ;* Ask for new address
+        jsr     BADDR           ;*
+        stx     NEWLOC          ;* Save ($D042)
+;;;* Now check fir firward move or backward move
+        ldaa    BEGA            ;*
+        suba    NEWLOC          ;*
+        bcs     BACK            ;* if NEW > OLD
+        bne     FORWRD          ;* IF <>
+        ldaa    BEGA+1          ;* If =, Check the rest
+        suba    NEWLOC+1        ;*
+        bcs     BACK            ;* if NEW > OLD
+        bne     FORWRD          ;*
+NEXIT   rts                     ;* No move if NEW=OLD
+;;;* Forward move
+FORWRD  ldx     BEGA            ;*
+        stx     SAVEX           ;* Save copy of Starting address
+FWD1    ldx     SAVEX           ;*
+        dex                     ;*
+        cpx     ENBA            ;* Check for the end
+        beq     NEXIT           ;* Exit if done
+        inx                     ;*
+        ldaa    0,X             ;* Get next byte
+        inx                     ;* Bump FROM pointer
+        stx     SAVEX           ;*
+        ldx     NEWLOC          ;*
+        staa    0,X             ;* Save byte
+        inx                     ;* Bump TO pointer
+        stx     NEWLOC          ;*
+        bra     FWD1            ;* and repeat
+;;;* Backward move
+BACK    ldaa    ENDA            ;* Compute end of new aread
+        ldab    ENDA+1          ;*
+        subb    BEGA+1          ;*
+        sbca    BEGA            ;* Length of old
+        addb    NEWLOC+1        ;*
+        adca    NEWLOC          ;*
+        staa    NEWLOC          ;*
+        stab    NEWLOC+1        ;* Store last loc of new
+        ldx     ENDA            ;*
+        stx     SAVEX           ;* Save copy of last loc
+BACK1   ldx     SAVEX           ;*
+        inx                     ;*
+        cpx     BEGA            ;* Check for End
+        beq     NEXIT           ;* Exit if done
+        dex                     ;*
+        ldaa    0,X             ;* Get next byte
+        dex                     ;* Bump FROM point
+	stx     SAVEX           ;*
+        ldx     NEWLOC          ;*
+        staa    0,X             ;* Save byte
+        dex                     ;* Bump TO pointer
+        stx     NEWLOC          ;*
+        bra     BACK1           ;* and repeat ($E61C)
 
 ; ===========================================================================
         ;;* $E61E 14 Pg 187L
@@ -452,6 +746,35 @@ BKN1    dec     A               ;*
 NGEXIT  ins                     ;* Fix stack to bypass calling routine on error
         ins                     ;*
 OKEXIT  rts                     ;* return when done $(E68A)
+
+; ===========================================================================
+        ;;* $E68B 14 Pg 186R
+        ORG     $E68B
+;;;* 'BP' Command - Print breakpoint Locations
+BPRINT  ldab    #'0'            ;* Breakpoint number in ASCII
+        ldx     #BKTAB          ;*
+        stx     SAVEX           ;*
+BPR1    inc     B               ;*
+        cmpb    #'5'            ;* Stop at 5 Breakpoints @FIXME: I think $5
+        bne     BPR2            ;*
+        rts                     ;* Return when done
+BPR2    jsr     CRLF            ;* Print CR
+        tba                     ;* Get BP number
+        jsr     OUTEEE          ;* Print breakpoint number
+        ldx     SAVEX           ;* Get its location in Table
+        ldaa    0,X             ;* Get BP address
+        cmpa    #$FF            ;* Is there one?
+        bne     BOR3            ;* Yes, go print it
+        inx                     ;*
+        inx                     ;* No, update pointer
+        inx                     ;*
+        bra     BPR4            ;* And repeat
+BPR3    jsr     OUTS            ;* Print space
+        ldx     SAVEX           ;*
+        jsr     OUT4HS          ;* Print address of breakpoint
+        jsr     OUT2HS          ;* Print Op code
+BPR4    stx     SAVEX           ;* Save BKTAB location of next
+        bra     BPR1            ;* and repeat ($E6BD)
 
 ; ===========================================================================
         ;;* $E6DF 14 Pg 188L
@@ -623,323 +946,6 @@ RTSIN   ldx     SP              ;* Get user stack pointer
         bra GOTADD              ;* And treat it as a jump ($E7F4)
 
 ; ===========================================================================
-        ;;* E305 14 Pg 183R
-        ORG     $E305
-FIND    ldx     #MANYST         ;* ($E0AB)
-        jsr     PDATA           ;* Ask "How many btyes"
-        jsr     INEEE           ;* Get a number
-        suba    #$30            ;* Convert from ASCII
-        beq     FIND5           ;* if = 0
-        bmi     FIND5           ;* if < 0
-        cmpa    #$03            ;*
-        bgt     FIND5           ;* If > 3
-        staa    FINDNO          ;* store number of bytes ($D025)
-        jsr     OUTS            ;*
-        ldx     #WHATST         ;* ($E1EA)
-        jsr     PDATA           ;* Ask "What bytes"
-        ldx     #WHAT           ;* ($D025)
-FIENRT  pshb                    ;*
-        jsr     BYTE            ;* Enter a byte
-        pulb                    ;* Restore counter
-        staa    0,X             ;* Store it
-        inx                     ;*
-        decb                    ;*
-        bne     FIENTR          ;* Enter more, if needed
-        jsr     FROMTO          ;* Get BEGA and ENDA
-        ldx     BEGA            ;* Get ready to look
-FIND1   ldab    FONDNO          ;* Main find loop ($D025)
-        ldaa    0,X             ;* Get first byte
-        cmpa    WHAT            ;*
-        bne     FIND4           ;* Wrong byte
-        decb                    ;*
-        beq     FIND2           ;* Found one correct byte
-        ldaa    1,X             ;* Get second byte
-        cmpa    WHAT+1          ;*
-        bne     FIND4           ;* Wrong
-        decb                    ;*
-        beq     FIND2           ;* Found two correct bytes
-        ldaa    2,x             ;* Get tird byte
-        cmpa    WHAT+2          ;*
-        bne     FIND4           ;* Wrong byte
-FIND2   stx     USAVEX          ;* Found correct bytes
-        bsr     FIND5           ;* Print CRLF via vector at FIND5
-        ldx     #USAVEX         ;* Point to address where found ($D020)
-        jsr     OUT4HS          ;* Print it -
-        jsr     OUTS            ;* One more space
-        ldx     USAVEX          ;*
-        dex                     ;* backup one byte
-        ldab    #$04            ;* Ready to print 4 bytes
-FIND3   jsr     OUT2HS          ;* Print byte
-        decb                    ;*
-        bne     FIND3           ;* Print four bytes
-        ldx     USAVEX          ;* Restire X
-FIND4   cpx     ENDA            ;* See if doine
-        beq     FIND5           ;* Yes
-        inx                     ;* No
-        bra     FIND1           ;* Keep looking
-FIND5   jmp     CRLF            ;* Do last CRLF nd return to FCROM when done ($E37E)
-; ==============================================================================
-        ;;* $E381 14 Pg 184R
-;;;* "FN" Command - Fill memory with constant
-        ORG     $E381
-FILL    jsr     FROMTO          ;* Get From-To addresses
-        ldx     #WITHST         ;* ($E1C5)
-        jsr     PDATA           ;* Ask for data
-        jsr     BYTE            ;*
-        ldx     BEGA            ;* Get starting address
-        dex                     ;*
-FILOOP  inx                     ;*
-        staa    0,X             ;* Store the byte
-        cpx     ENDA            ;* See if done
-        bne     FILOOP          ;* Contiune of No
-        rts                     ;* Quit when Done ($E399)
-; ==============================================================================
-        ;;* $E39A 14 Pg 184R
-        ORG     $E39A
-;;;* SUM - Memory Checksum
-SUM     jsr     FROMTO          ;* Get address limits
-        ldx     BEGA            ;* Get start address
-        clr     A               ;*
-        clr     B               ;*
-SUMLP   adda    0,X             ;* Add to checksum
-        adca    #0              ;* Also add carry to second byte
-        cpx     ENDA            ;* Last address?
-        beq     SUMDON          ;* Yes
-        inx                     ;* No, So increment and
-        bra     SUMLP           ;*
-DUMDON  staa    USAVEX          ;* Store SUM when done
-        stab    USAVEX+1        ;*
-        ldx     #USAVEX         ;* Point to Checksum
-VEC4HS  jmp     OUT4HS          ;* Output checksum and return when done $(E3B7)
-
-; ===========================================================================
-	;;* $E525 14 Pg 184L
-        ;;* E4ROM Entry Vectors
-        org     $E525
-;;;* 'AI' Command - ASCII Input routine
-ASCIN   jsr     FROMTO          ;* Get address Range
-        jsr     CRLF            ;*
-        ldx     ENDA            ;* Get Last empty address
-        stx     SAVEX           ;* Save it
-        ldx     BEGA            ;* Get starting address
-        dex
-ASCIN2  inx                     ;*
-        jsr     INEEE           ;* Get next character
-        staa    0,X             ;* Store it
-        cmpa    0,X             ;* See if it stored OK
-        bne     ASCIN3          ;*
-        stx     ENDA            ;* Store Ending address
-        cpx     SAVEX           ;* Check if Run out of memory
-        bne     ASCIN2          ;* No, so get more
-ASCIN3  ldx     #ESTR           ;* Mem full or bad, so ...
-        jsr     PDATA           ;* Print error
-        bra     ASCIN3          ;* Go to repeat
-;
-ESTR    FCC     ' Error\4'      ;* ($E54F)
-; ===========================================================================
-	;;* $E556 14 Pg 184L
-        ORG     $E556           ;*
-;;;* 'AO' Command - ASCII Output routine
-ASCOUT  jsr     FROMTO          ;* Get addres range
-        jsr     CRLF            ;*
-        ldx     BEGA            ;* Get starting address
-ASCO2   ldaa    0,X             ;* Get next character
-        jsr     OUTEEE          ;* Output it
-        cpx     ENDA            ;* See if done
-        beq     ASC03           ;* Yes
-        inx                     ;*
-        bra     ASCO2           ;* Repeat if not
-ASC03   rts                     ;* Return when done
-;
-; Fill in here?
-;
-; ===========================================================================
-	;;* $E56D 14 Pg 184R
-; ===========================================================================
-        ;;* E4ROM Entry Vectors
-        ORG     $E56D
-OLDSTR  FCC     'Enter old addresses:\4'
-NEWSTR  FCC     'Enter new address: \4'
-;
-        ORG     $E497
-MOVE    ldx     #OLDSTR         ;*
-        jsr     PDATA           ;* Ask for old addresses
-        jsr     FROMTO          ;*
-        jsr     CRLF            ;*
-        ldx     #NEWSTR         ;*
-        jsr     PDATA           ;* Ask for new address
-        jsr     BADDR           ;*
-        stx     NEWLOC          ;* Save ($D042)
-;;;* Now check fir firward move or backward move
-        ldaa    BEGA            ;*
-        suba    NEWLOC          ;*
-        bcs     BACK            ;* if NEW > OLD
-        bne     FORWRD          ;* IF <>
-        ldaa    BEGA+1          ;* If =, Check the rest
-        suba    NEWLOC+1        ;*
-        bcs     BACK            ;* if NEW > OLD
-        bne     FORWRD          ;*
-NEXIT   rts                     ;* No move if NEW=OLD
-;;;* Forward move
-FORWRD  ldx     BEGA            ;*
-        stx     SAVEX           ;* Save copy of Starting address
-FWD1    ldx     SAVEX           ;*
-        dex                     ;*
-        cpx     ENBA            ;* Check for the end
-        beq     NEXIT           ;* Exit if done
-        inx                     ;*
-        ldaa    0,X             ;* Get next byte
-        inx                     ;* Bump FROM pointer
-        stx     SAVEX           ;*
-        ldx     NEWLOC          ;*
-        staa    0,X             ;* Save byte
-        inx                     ;* Bump TO pointer
-        stx     NEWLOC          ;*
-        bra     FWD1            ;* and repeat
-;;;* Backward move
-BACK    ldaa    ENDA            ;* Compute end of new aread
-        ldab    ENDA+1          ;*
-        subb    BEGA+1          ;*
-        sbca    BEGA            ;* Length of old
-        addb    NEWLOC+1        ;*
-        adca    NEWLOC          ;*
-        staa    NEWLOC          ;*
-        stab    NEWLOC+1        ;* Store last loc of new
-        ldx     ENDA            ;*
-        stx     SAVEX           ;* Save copy of last loc
-BACK1   ldx     SAVEX           ;*
-        inx                     ;*
-        cpx     BEGA            ;* Check for End
-        beq     NEXIT           ;* Exit if done
-        dex                     ;*
-        ldaa    0,X             ;* Get next byte
-        dex                     ;* Bump FROM point
-	stx     SAVEX           ;*
-        ldx     NEWLOC          ;*
-        staa    0,X             ;* Save byte
-        dex                     ;* Bump TO pointer
-        stx     NEWLOC          ;*
-        bra     BACK1           ;* and repeat ($E61C)
-
-
-; ===========================================================================
-        ;;* E4ROM Entry Vectors
-        org     $E400
-CINITV4 jmp     CINIT4          ;* Cold start initialization
-;;* CINIT4 - Cold Start Initialization
-;;* Check whether this is powerup or reset of system
-CINIT4  ldx     #$1234          ;* Check power-up locations
-        cmpx    POWUP           ;*
-        bne     PUP             ;*
-        cpx     POWUP+2         ;*
-        beq     xRESET          ;*
-;;;* Initial power up sequence
-PUP     ldx     #BKRETM         ;* Initialize Breakpoint ISS addresses
-        stx     SWIJMP          ;*
-        ldx     #$1234          ;*
-        stx     POWUP           ;*
-        stx     POWUP+2         ;* Initialize POWUP flag
-        ldaa    #$FF            ;*
-        ldab    $$12            ;*
-BKERAS  staa    0,X             ;* Erase Break points table
-        inx                     ;*
-        decb                    ;*
-        bne     BKERAS          ;* Repeat if not finished
-;;;* See if other ROMs require initialization
-xRESET  ldaa    $E800           ;* Check next ROM
-        cmpa    #JMPINST        ;* Is there a jump?
-        beq     CMORE4b         ;*
-        ldaa    $EC00           ;* Check the ROM after that
-        cmpa    #JMPINST        ;* Is there a jump?
-        beq     CMORE8b         ;*
-        rts                     ;* No, return to FCROM
-CMORE4b jmp     $E800           ;* Yes, go initialize
-CMORE8b jmp     $EC00           ;* Yes, go initialize second ROM
-
-; ===========================================================================
-        ;;* $E4B6 14 Pg 186R
-	ORG     $E4B6
-;;;* 'DE' Command - Desembler dump
-DESEMB  jsr     FROMTO          ;* Ask for addresses
-        ldx     BEGA            ;*
-        stx     SAVEX           ;*
-DES2    jsr     PRNTOP          ;* Go to print current line
-        ldaa    ENDA            ;* Subtract next FROM last
-        ldab    ENDA+1          ;*
-        subd    SAVEX+1         ;*
-        sbca    SAVEX           ;*
-        bcc     DES2            ;* Return if NEXT <= LAST
-        rts                     ;* otherwise exit
-;;;* PRNTOP - subroutine to print address and current instruption
-PRNTOP  jsr     CRLF            ;*
-        ldx     #SAVEX          ;* Get location of next address
-        jsr     OUT4HS          ;* Print it
-        jsr     OUTS            ;*
-        ldx     SAVEX           ;* Get address of instruction
-        ldaa    0,X             ;* Get operation code
-        staa    INSTR           ;* Save it
-        jsr     OUT2HS          ;* Print it
-        stx     SAVEX           ;* Increment SAVEX
-        clr     B               ;* Byte counter
-        ldaa    INSTR           ;*
-        cmpa    #$8C            ;* Analyze Op code for nu of bytes
-        beq     LENTH3          ;*
-        cmpa    #$8E            ;*
-        beq     LENTH3          ;*
-        cmpa    #$CE            ;*
-        beq     LENTH3          ;*
-        anda    #$F0            ;*
-        cmpa    #$20            ;*
-        beq     LENTH2          ;*
-        cmpa    #$60            ;*
-        beq     LENTH1          ;*
-        anda    #$30            ;*
-        cmpa    #$30            ;*
-        bne     LENTH2          ;*
-LENTH3  inc     B               ;* 3-Byte: 8C, 8E, CE, 7x, Bx, Fx
-LENTH2  inc     B               ;* 2-Byte: 2x, 6x, 8x, 9x, Ax, Cx, Dx, Ex
-LENTH1  inc     B               ;* 1-Byte: 1x, 3x, 4x, 5x
-        nop                     ;*
-        nop                     ;*
-        beq     POP3            ;*
-        dec     COUNT           ;* ($D046)
-        beq     POP1            ;*
-        jsr     OUT4HS          ;* Print 2 bytes
-        bra     POP2            ;*
-POP1    jsr     OUT2HS          ;* Print One byte
-POP2    stx     SAVEX           ;* Increment next
-POP3    RTS                     ;* ($E524)
-
-; ===========================================================================
-        ;;* $E68B 14 Pg 186R
-        ORG     $E68B
-;;;* 'BP' Command - Print breakpoint Locations
-BPRINT  ldab    #'0'            ;* Breakpoint number in ASCII
-        ldx     #BKTAB          ;*
-        stx     SAVEX           ;*
-BPR1    inc     B               ;*
-        cmpb    #'5'            ;* Stop at 5 Breakpoints @FIXME: I think $5
-        bne     BPR2            ;*
-        rts                     ;* Return when done
-BPR2    jsr     CRLF            ;* Print CR
-        tba                     ;* Get BP number
-        jsr     OUTEEE          ;* Print breakpoint number
-        ldx     SAVEX           ;* Get its location in Table
-        ldaa    0,X             ;* Get BP address
-        cmpa    #$FF            ;* Is there one?
-        bne     BOR3            ;* Yes, go print it
-        inx                     ;*
-        inx                     ;* No, update pointer
-        inx                     ;*
-        bra     BPR4            ;* And repeat
-BPR3    jsr     OUTS            ;* Print space
-        ldx     SAVEX           ;*
-        jsr     OUT4HS          ;* Print address of breakpoint
-        jsr     OUT2HS          ;* Print Op code
-BPR4    stx     SAVEX           ;* Save BKTAB location of next
-        bra     BPR1            ;* and repeat ($E6BD)
-
-; ===========================================================================
         ;;* Jump Vectors
         ORG     $FC00
         ;; The 6800 Humbug is from the Kilobaud-Thoughts13.pdf
@@ -965,7 +971,7 @@ OUT4HSV	jmp	OUT4HS          ;* 6
 OUTSV	jmp	OUT4            ;* 7 ($FC30)  $FD6B ?
 ;
 ; ===========================================================================
-        org     $FC33           ; From article
+        ORG     $FC33           ; From article
         ; 
         ;* Initialize the I/O Ports
 COLDST: 
@@ -1202,10 +1208,15 @@ NMIV    ldx     NMI             ;* NMI vector via A006
         FDB     SWIV            ;* SWI vector
         FDB     NMIV            ;* NMI vector
         FDB     COLDV           ;* Reset vector
+
+        END
+
+; =[ Fini ]==================================================================
+
 ; ===========================================================================
 ;   STARTUP VECTORS $FFF8 -$FFFF
 ;
-        ORG $FFF8
+;        ORG     $FFF8
 ;
 ;        FDB IRQ                 ; FFF8 IRQ (no code)
 ;        FDB SWI                 ; FFFA SWI (no code)
@@ -1213,7 +1224,7 @@ NMIV    ldx     NMI             ;* NMI vector via A006
 ;        FDB HUMBUG              ; FFFE Restart
 ;
 ; Version 1 has table of RAM locations at $A000H
-        END
+;
 ; ------------------------------------------------------------------------------
 ;* MEMORY MAP
 ;* Hex Address
