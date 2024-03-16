@@ -1,0 +1,62 @@
+Device required. Use -p <device> to specify a device.
+minipro version 0.4dev     A free and open TL866XX programmer
+Usage: minipro [options]
+options:
+  --list		-l		List all supported devices
+  --search		-L <search>	List devices like this
+  --programmer		-q <model>	Force a programmer model
+					when listing devices.
+					Possible values: TL866A TL866II
+  --query_supported	-Q		Query supported programmers
+  --presence_check	-k		Query programmer version
+					currently connected.
+  --get_info		-d <device>	Show device information
+  --get_id		-D		Just read the chip ID
+  --read		-r <filename>	Read memory
+  --write		-w <filename>	Write memory
+  --verify		-m <filename>	Verify memory
+  --format		-f <format>	Specify file format
+					Possible values: ihex, srec
+  --blank_check		-b		Blank check.
+					Optionally, you can use -c
+					to specify a memory type
+  --auto_detect		-a <type>	Auto-detect SPI 25xx devices
+					Possible values: 8, 16
+  --pin_check		-z		Check for bad pin contact
+  --skip_erase		-e 		Do NOT erase device
+  --erase		-E 		Just erase device
+  --write_protect	-u 		Do NOT disable write-protect
+  --no_write_protect	-P 		Do NOT enable write-protect
+  --skip_verify		-v		Do NOT verify after write
+  --device		-p <device>	Specify device (use quotes)
+  --page		-c <type>	Specify memory type (optional)
+					Possible values: code, data, config
+  --pulse, --vpp	-o <option>	Specify various programming options
+  --vdd, --vcc
+					For multiple options use -o
+					for each option
+					Programming voltage <vpp=value>
+					*=TL866II+ only  **=TL866A/CS only
+					(*9,*9.5, 10, *11, *11.5, *12, 12.5)
+					(*13, 13.5, 14, *14,5, 15.5, 16)
+					(*16.5, 17, 18, **21)
+					VDD write voltage <vdd=value>
+					VCC verify voltage <vcc=value>
+					(3.3, 4, 4.5, 5, 5.5, 6.5)
+					Programming pulse delay
+					<pulse=value> (0-65535 usec)
+  --icsp_vcc		-i		Use ICSP
+  --icsp_no_vcc		-I		Use ICSP (without enabling Vcc)
+  --no_size_error	-s		Do NOT error on file size mismatch
+					(only a warning)
+  --no_size_warning	-S		No warning message for
+					file size mismatch
+					(can't combine with -s)
+  --skip_id		-x		Do NOT attempt to read ID
+					(only valid in read mode)
+  --no_id_error		-y		Do NOT error on ID mismatch
+  --version		-V		Show version information
+  --hardware_check	-t		Start hardware check
+  --update		-F <filename>	Update firmware
+					(should be update.dat or updateII.dat)
+  --help		-h		Show help (this text)
