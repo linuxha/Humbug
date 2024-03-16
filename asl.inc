@@ -49,7 +49,7 @@ CTRL_U  EQU $15                 ; NAK
 ;
 LF      EQU $0A                 ; ASL allows \n
 CR      EQU $0D                 ; ASL allows \r
-SP      EQU $20                 ;
+SPC     EQU $20                 ;
 
 ;/* Local Variables: */
 ;/* mode:asm         */
