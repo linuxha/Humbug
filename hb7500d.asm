@@ -19,8 +19,8 @@
 ;
 ;	CPU:		Motorola 6803 (6801/6803 family)
 	MACEXP  off
-        ;PU     6301            ; That's what asl has
-        CPU     6800            ; That's what asl has
+        CPU     6301            ; That's what asl has
+        ;PU     6800            ; That's what asl has
 ;
 ;
 ; ===========================================================================
@@ -500,7 +500,7 @@ L7717:	pshx
 	rts
 ;
 L771F:
-CRLFST: fcc     CR, LF, NUL, NUL, EOT
+CRLFST: fcc     '\r\n\0\0\4'    ;* CR, LF, NUL, NUL, EOT
         ;;
         ;;* PDATA - PRINT DATA STRING
         ;;
@@ -720,11 +720,11 @@ L782D:
 	jmp	L78C3
 ;
 L7836:
-BASST:  fcc     "BASIC: ", $04
+BASST:  fcc     "BASIC: \4"
 L783E:
-DATST:  fcc     "DATA:  ", $04
+DATST:  fcc     "DATA:  \4"
 L7846:
-BINST:  fcc     "BIN: ", $04
+BINST:  fcc     "BIN: \4"
 L784E:
 	ldab	$4028
 	aslb
@@ -779,7 +779,7 @@ L78A7:
 L78C3:
 	jmp	L7594
 L78C6:
-ASCST:  fcc     "ASCII", $04
+ASCST:  fcc     "ASCII\4"
         ;;
         ;;  SA - Save to cassette
 L78CC:
@@ -840,13 +840,15 @@ L7911:
 	jsr	LFC5D           ; point X to first data byte then set start address for block write
 	rts
 ;
-L792D:  fcc     $0D, $0A, "  START"
+L792D:  fcc     "\r\n  START"
 L7936:
-ADDRSTR:fcc     " ADDR: ", $04
+ADDRSTR:fcc     " ADDR: \4"
 ;
-L793E:  fcc     $0D, $0A, "  NAME: ", $04
-L7949:  fcc     "WITH? ", $04
-L7950:  fcc     "WHAT? ", $04
+L793E:  fcc     "\r\n  NAME: \4"
+L7949:
+WITH    fcc     "WITH? \4"
+L7950:
+WHAT    fcc     "WHAT? \4"
 L7957:
 FROMTO: ldx	#FROMSTR        ; Print From ($799D) @FIXME
 	jsr	PDATA           ; (L 7724)
@@ -862,7 +864,7 @@ L7962:
         ;; to
         ;; $00 - $0F)
         ;; 
-L7967:   suba	#$30
+L7967:  suba	#$30
 	bmi	NXTHEX           ; Not a Valid hex (less than '0' - L 799A)L799A
 	cmpa	#$09
 	ble	L7979           ; 0 >= A >= 9 (0 - 9)
@@ -895,9 +897,9 @@ NXTHEX: ins                     ; db      "1"
         rts                     ; db      "9"
 ;
 L799D:
-FROMSTR:fcc     " FROM ", $04   ; L799D:
+FROMSTR:fcc     " FROM \4"      ; L799D:
 L79A4:
-TOSTR:  fcc     " TO ", $04     ;L79A4:
+TOSTR:  fcc     " TO \4"        ;L79A4:
 ;
 L79A9:
 EXINST: ldx	#MAIN           ; $7500 COLDST
@@ -1009,7 +1011,7 @@ BEEXIT: rts                     ; and Return
         ;; BKTAB
         ;; 
 L7A60:
-NUMSTR: fcc     " NUMBER: ", $04
+NUMSTR: fcc     " NUMBER: \4"
 ;
 L7A6A:
 BKNUM:  ldx	#NUMSTR         ; ($7A60)
@@ -1124,7 +1126,7 @@ RELOOP:
 	jmp	NXTCMD          ; NXTCMD AND RETURN (L7594)
 ;
 L7B1B:
-REMSG:  fcc     "hinzvc b  a   x    pc   sp", $04
+REMSG:  fcc     "hinzvc b  a   x    pc   sp\4"
 L7B36:
 RCINST: ldx	#$7B5B
 	jsr	L7724
@@ -1149,7 +1151,7 @@ L7B51:
 	stx	BADDRH          ; (X 7709)
 	jmp	CHANGE0         ; (L 7646)
 ;
-L7B5B:  fcc     "REG: ", $04
+L7B5B:  fcc     "REG: \4"
                                 ;
         ;;
         ;; This needs some clean up, not sure what
@@ -1169,7 +1171,7 @@ COINST: lds	USRSTK          ; X770F
 	rti
 ;
 L7B6B:  nop
-L7B6C:  fcc     "START FROM ADDRESS: ", $04
+L7B6C:  fcc     "START FROM ADDRESS: \4"
 ;
 L7B81:
 STINST: ldx	#$7B6C
@@ -1234,7 +1236,7 @@ L7BF0:
 	staa	$00,x
 	jmp	L7594
 ;
-L7C01:  fcc     "NO!", $04
+L7C01:  fcc     "NO!\4"
 ;	db	$4E             ;
 ;
 ;	clra
@@ -1426,7 +1428,7 @@ L7D4A:
 L7D5F:
 	rts
 ;
-L7D60:  fcc     "COMPARE:", $04
+L7D60:  fcc     "COMPARE:\4"
 L7D69:
 MTINST: jsr	FROMTO          ; (L7957)
 	ldx	X7705
@@ -1472,7 +1474,7 @@ L7DAC:
 	ldx	#$7DB2
 	jmp	L7724
 ;
-L7DB2:	fcc     "OK", $04
+L7DB2:	fcc     "OK\4"
 L7DB5:
 FIINST: ldx	#$7E33
 	jsr	L7724
@@ -1536,7 +1538,7 @@ L7E28:
 L7E30:
 	jmp	L7717
 ;
-L7E33:  fcc     "HOW MANY? ", $04
+L7E33:  fcc     "HOW MANY? \4"
 	;; 
 L7E3E:
 FMINST: jsr	FROMTO          ; L7957
@@ -1594,7 +1596,7 @@ L7E99:
 	ldx	#$7EA1
 	jsr	L7724
 	bra	L7E99
-L7EA1:  fcc     " ERROR", $04
+L7EA1:  fcc     " ERROR\4"
 	;;
 	;; AO - ASCII OUTPUT ROUTINE
         ;;
@@ -1612,8 +1614,8 @@ AOINST1:ldaa	$00,x           ;* GET NEXT CHARACTER
 L7EBE:
 AOEXIT: rts                     ;* WHEN DONE
 ;
-L7EBF:  fcc     "OLD ADDR:", $04
-L7EC9:  fcc     "NEW ADDR:", $04
+L7EBF:  fcc     "OLD ADDR:\4"
+L7EC9:  fcc     "NEW ADDR:\4"
 L7ED5:
 MMINST: ldx	#$7EBF
 	jsr	PDATA           ; (L 7724)
@@ -1703,7 +1705,7 @@ HLOOP3: decb
         ;;
         ;; @FIXME: This needs a proper clean up with rmb
         ;; 
-L7F71:  fcc	$00, $00, $00, $00
+L7F71:  fcc	"\0\0\0\0"
 L7F75   equ     *
         org     $7FA0
 STACK   equ     *
