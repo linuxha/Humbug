@@ -1,7 +1,7 @@
 ; ===========================================================================
 ; This is the disassembly of the Peter Stark's Humbug+ monitor for the Tandy
 ; MC-10. While this was disassembled with the 6803 CPU option it does appear
-; that this is basically the 6800 version of Humbug.
+; that this is basically the 6800 version of Humbug but for the MC10.
 ; ===========================================================================
 ; Most of Stark's Humbug ROM for the 6800 is described in great detail in 2
 ; Microcomputing articles: Thoughts13.pdf (Aug 80) and Thoughts14.pdf (Sept 80)
@@ -142,6 +142,7 @@
         include "motorola.inc"          ; Macros for things like fcc,db, etc.
         include "humbug.inc"            ; This may need a lot of clean up
         include "MC6800.inc"
+	include "dummy.inc"
         ;;
         ;; $4000 - $41FF - Video RAM
         ;; $4200 - $4334 - OS Variables
@@ -165,8 +166,8 @@ BEGA    RMB     2               ;* A002
 ENDA    RMB     2               ;* A004
 NMI     RMB     2               ;* A006
 SP      RMB     2               ;* A008
-PORADD  RMB     2               ;* A00A
-PORECH  RMB     1               ;* A00C
+P0RADD  RMB     2               ;* A00A
+P0RECH  RMB     1               ;* A00C
 XHI	RMB     1               ;* A00D
 XLO     RMB     1               ;* A00E
 CKSUM   RMB     3               ;* A00F
@@ -188,7 +189,7 @@ P1STAT  RMB     1               ;* Port 1
 ; D002
 VSTAT   RMB     1               ;*
 ; D003
-BSTAT   RMB     1               ;* BSTAT? DSTAT?
+DSTAT   RMB     1               ;* BSTAT? DSTAT?
 ; D004
 PASTAT  RMB     1               ;* Pause flag
 ; D005
@@ -320,7 +321,7 @@ LOOKUP  inx
         jsr     OUTS            ;* print a space
         jmp     0,X             ;* Jump to appropriate command routine
 ;;;* Command not found; See if other ROMs have commands
-COMEND  ldaa    #$E406          ;* Check for next ROM
+COMEND  ldaa    $E406           ;* Check for next ROM
         cmpa    #JMPINST        ;* Is there a jump
         bne     COMMD4          ;*
         ldaa    $E806           ;* Check the ROM after that
@@ -371,9 +372,9 @@ FROMTO  ldx     #FROMST         ;*
         jsr     PDATA           ;* Print "FROM "
         jsr     INEEE           ;* Get character
         cmpa    #$0D            ;* Is it a CR?
-        bne     GETFI           ;* Continue if not
+        bne     GETFT           ;* Continue if not
         jmp     CRLF            ;* On CR, do CRLF and return
-SETFT   suba    #$30            ;* Continue ... check for digit
+GETFT   suba    #$30            ;* Continue ... check for digit
         bmi     SONOTS          ;* Not hex
         cmpa    #$09            ;*
         ble     GOTONE          ;*
@@ -417,7 +418,7 @@ FIND    ldx     #MANYST         ;* ($E0AB)
         ldx     #WHATST         ;* ($E1EA)
         jsr     PDATA           ;* Ask "What bytes"
         ldx     #WHAT           ;* ($D025)
-FIENRT  pshb                    ;*
+FIENTR  pshb                    ;*
         jsr     BYTE            ;* Enter a byte
         pulb                    ;* Restore counter
         staa    0,X             ;* Store it
@@ -486,7 +487,7 @@ SUMLP   adda    0,X             ;* Add to checksum
         beq     SUMDON          ;* Yes
         inx                     ;* No, So increment and
         bra     SUMLP           ;*
-DUMDON  staa    USAVEX          ;* Store SUM when done
+SUMDON  staa    USAVEX          ;* Store SUM when done
         stab    USAVEX+1        ;*
         ldx     #USAVEX         ;* Point to Checksum
 VEC4HS  jmp     OUT4HS          ;* Output checksum and return when done $(E3B7)
@@ -509,7 +510,7 @@ PUP     ldx     #BKRETM         ;* Initialize Breakpoint ISS addresses
         stx     POWUP           ;*
         stx     POWUP+2         ;* Initialize POWUP flag
         ldaa    #$FF            ;*
-        ldab    $$12            ;*
+        ldab    #$12            ;*
 BKERAS  staa    0,X             ;* Erase Break points table
         inx                     ;*
         decb                    ;*
@@ -652,7 +653,7 @@ FORWRD  ldx     BEGA            ;*
         stx     SAVEX           ;* Save copy of Starting address
 FWD1    ldx     SAVEX           ;*
         dex                     ;*
-        cpx     ENBA            ;* Check for the end
+        cpx     ENDA            ;* Check for the end
         beq     NEXIT           ;* Exit if done
         inx                     ;*
         ldaa    0,X             ;* Get next byte
@@ -764,7 +765,7 @@ BPR2    jsr     CRLF            ;* Print CR
         ldx     SAVEX           ;* Get its location in Table
         ldaa    0,X             ;* Get BP address
         cmpa    #$FF            ;* Is there one?
-        bne     BOR3            ;* Yes, go print it
+        bne     BPR3            ;* Yes, go print it
         inx                     ;*
         inx                     ;* No, update pointer
         inx                     ;*
@@ -843,11 +844,11 @@ OK1     ldaa    INSTR           ;* Get OP code
         cmpa    #$20            ;*
         bcs     NOBR            ;* No branch
         cmpa    #$30            ;*
-        bcs     TYESBR          ;* Yes
+        bcs     YESBR           ;* Yes
 NOBR    cmpa    #$39            ;*
         beq     NOTRTS          ;* No
         jmp     RTSIN           ;* Yes
-NOTRTS  cmpa    $$3B            ;*
+NOTRTS  cmpa    #$3B            ;*
         beq     NOGOOD          ;* Don't do RTI
         cmpa    #$3F            ;*
         beq     NOGOOD          ;* Dito for SWI
@@ -873,7 +874,7 @@ NOGOOD  ldx     #NOSTR          ;*
         jmp     HOTST           ;*
 NOSTR   FCC     'NO!\4'         ;*
 ;;;* Normal instructions are easy
-NORMAL  ldaa    $%FF            ;* Erase ALT address Loc
+NORMAL  ldaa    #$FF            ;* Erase ALT address Loc
         staa    BRANCH          ;*
 GOUSER  ldx     #SSRETN         ;* Redirect SQI return
         stx     SWIJMP          ;*
@@ -910,7 +911,7 @@ ZEROOF  inx                     ;* Point to next instr
 GOTADD  stx     BRANCH          ;* Save Address
         ldaa    0,X             ;* Get Instruction
         staa    BRANCH+2        ;* Save it
-        ldaa    $$3F            ;*
+        ldaa    #$3F            ;*
         staa    0,X             ;* Substitute SWI
         cmpa    0,X             ;* Check that it went in
         beq     GOUSER          ;* Go to user if on
@@ -918,7 +919,7 @@ GOTADD  stx     BRANCH          ;* Save Address
 ;;;* Minus offset
 MINOFF  dex                     ;* Subtract offset
         inc     B               ;* From instr address
-        bne     MINOOF          ;*
+        bne     MINOFF          ;*
         bra     ZEROOF          ;*
 ;;;*
 ;;;* Handle Extended jump address
@@ -942,7 +943,7 @@ JINDEX  ldx     USERPC          ;*
 ;;;*  Handle RTS Instruction
 ;;;*
 RTSIN   ldx     SP              ;* Get user stack pointer
-        ldx     0.X             ;* Get return address from user's stack
+        ldx     0,X             ;* Get return address from user's stack
         bra GOTADD              ;* And treat it as a jump ($E7F4)
 
 ; ===========================================================================
@@ -968,7 +969,7 @@ OUTHLV	jmp	OUTHL           ;* 3
 OUTHRV	jmp	OUTHR           ;* 4
 OUT2HSV	jmp	OUT2HS          ;* 5
 OUT4HSV	jmp	OUT4HS          ;* 6
-OUTSV	jmp	OUT4            ;* 7 ($FC30)  $FD6B ?
+OUTSV	jmp	OUTS            ;* 7 ($FC30)  $FD6B ?
 ;
 ; ===========================================================================
         ORG     $FC33           ; From article
@@ -1019,7 +1020,7 @@ WARMST  lds     $D07F           ;* Set STACK pointer to Monitor Area
 ;;;* $FC94 14 Pg 179 L
 ;;;* HOST - Initialization complete, ready for command
 HOTST   lds     #$D07F          ;* Reset stack pointer to monitor area
-        clr     PORECH          ;* Turn on control port echo
+        clr     P0RECH          ;* Turn on control port echo
         jsr     PCRLF           ;* Print CR/LF
         ldaa    #'*'            ;* Print prompts
         jsr     OUTEEE          ;*
@@ -1039,7 +1040,7 @@ HOTST   lds     #$D07F          ;* Reset stack pointer to monitor area
 NOTJU   cmpa    #'M'            ;* Check for ME(mory change)
         bne     HOTEND
         cmpb    #'E'
-        beq     CHANGE          ;* Execute change command
+        beq     NOTJU ;*CHANGE          ;* Execute change command @FIXME: There is no CHANGE
 ;;;* See if other ROMs have commands
 HOTEND  ldaa    $E006           ;*
         cmpa    #JMPINST        ;* Is the a jump
@@ -1052,7 +1053,7 @@ GOHOT1  bra     HOTST           ;* Then do more commands
 ; ===========================================================================
         ;;* $FD6F 14 pg 180L
         ORG     $FD6F
-JUMP    bsr     BADDR           ;* Get address
+JUMP    bsr     JUMP ;*BADDR           ;* Get address @FIXME:
         lds     #USTACK         ;* USTACK, Init stack to user area
         jsr     0,X             ;* Jump to user program
         jmp     WARMST          ;* On RTS, return to warm start
@@ -1090,7 +1091,7 @@ NOT0    cmpa    #'1'            ;* Port 1 command?
         com     P1STAT          ;* Yes; Flip port 1 status
         rts
 
-NOT1    cmpa    #$'D'           ;* Port D Command?
+NOT1    cmpa    #'D'            ;* Port D Command?
         bne     NOTD            ;* No
         com     DSTAT           ;* Yes, flip port D Status
         rts
@@ -1142,11 +1143,11 @@ NOTEST  pula                    ;* Finished testing for command
 ;;;* Check for pause
         tst     PASTAT          ;* Pause stat on?
         beq     NOPAUS          ;* No
-        cmpa    $#10            ;* Clear screen?
+        cmpa    #$10            ;* Clear screen?
         bne     NOCLR           ;* No
         ldaa    #$0F            ;* Test; reset pause counter
         staa    PAUCTR          ;*
-        bra     NOPAUSE         ;*
+        bra     NOPAUS          ;*
 NOCLR   cmpa    #$0D            ;* CR?
         bne     NOPAUS          ;* Only pause at the end of the line
         dec     PAUCTR          ;* decr pause line cntr
@@ -1167,12 +1168,12 @@ NOTPT0  tst     P1STAT          ;* Print on control port?
 NOTPTH  tst     VSTAT           ;* Output via video BOARD?
         beq     NOTVID          ;* No
         psha                    ;* Yes
-        bsr     OUTCHV          ;* Output to video
+        bsr     NOTVID ;*OUTCHV          ;* Output to video @FIXME:
         pula                    ;*
 NOTVID  tst     DSTAT           ;* Print on D?
         beq     NOTDUR          ;* No
         jsr     OUTCMD          ;* Yes (jsr $EC0C)
-BOTDUR  ldx     OUTEXR          ;* Reload X & B
+NOTDUR  ldx     OUTEXR          ;* Reload X & B
         pulb                    ;*
         rts                     ;*
 ;;;* Output on Port 0
