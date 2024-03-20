@@ -3,6 +3,18 @@
 Peter Stark's Humbug monitor for the Motorola 68xx. Copied from the
 Kilobaud/Micromputing articles of July, August and September of 1980.
 
+And copied from a disassembly of the Tandy MC10 Humbug+ corrupted tape
+cassette image (hb7500).
+
+And a copy of the 6809 Humbug source. This is a little harder to use
+as the 6800 has a subset of the instructions, a subset of the addressing,
+a subset of the Registers and many techniques can't be used with the
+6800.
+
+If anyone has a copy of the Humbug ROMs for the 6800, please share! We
+can disassemble them and finally get a working set for the 6800. The
+6809 & 68K family sources are available.
+
 # Table of Contents
 
 - [Humbug](#humbug)
@@ -31,9 +43,16 @@ itself. I think it is a damaged version. But between the two and the Tandy
 CoCo version (which I hope is intact) I hope to build a working Humbug ROM
 for the 6800, 6802 & 6801.
 
-Right now this is just a mess of files. It won't compile yet.
+Right now this is just a mess of files. It now assembles but is a mess. I've
+had to resort to abusing all the memory I can use as I whittle away at the
+wayward RAM usage. I also need to keep an eye on any code that is unintentionally
+being self modifiying code. .
 
 # History
+
+March 19, 2024
+
+Code assembles and some functions work. The code is still questionable at this time.
 
 Started March 9, 2024
 
