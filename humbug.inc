@@ -458,3 +458,6 @@ LFF4E       equ  $FF4E
 ;* $E000 - $FFEF        Phatom ROM
 ;* $FFF0 - $FFFF        System vectors
 ; ------------------------------------------------------------------------------
+;/* Local Variables: */
+;/* mode:asm         */
+;/* End:             */
