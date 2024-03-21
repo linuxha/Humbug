@@ -1,4 +1,10 @@
-    IF  MOMPASS=1
+        ifndef   HB_INC    ; avoid multiple inclusion
+HB_INC  equ      1
+        save
+
+        if       mompass=1
+          message "Humbug IO equates (C) 2024 Neil Cherry"
+        endif
 ;;;
 ;;;
 ;;; 
@@ -10,9 +16,11 @@ JMP	EQU	$7E
 ;;;
 ;;; Setup for the simulator
 ;;;
-        message "***"
-        message "*** Built for the sim6800"
-        message "***"
+        if       mompass=1
+          message "***"
+          message "*** Built for the sim6800"
+          message "***"
+        endif
 ;
 ACIACS  EQU     $F000           ;V3 has $F000, $F001
 ACIADA  EQU     $F001
@@ -24,9 +32,11 @@ RSTART  EQU     $E100           ; IO at $E000, ROM starts at $E100
 ;;;
 ;;; Adjusted for my MP-02
 ;;; 
-        message "***"
-        message "*** Built for the MP-02"
-        message "***"
+        if       mompass=1
+          message "***"
+          message "*** Built for the MP-02"
+          message "***"
+        endif
 ;;; 
 ACIACS  EQU     $E000           ;V1 has $8000, $8001
 ACIADA  EQU     $E001
@@ -48,9 +58,11 @@ RSTART  EQU     $E100           ; IO at $E000, ROM starts at $E100
 ;;;
 ;;; Original (the way I got it)
 ;;; 
-        message "***"
-        message "*** Built for the Original/SWTPC"
-        message "***"
+        if       mompass=1
+          message "***"
+          message "*** Built for the Original/SWTPC"
+          message "***"
+        endif
 ;;; 
 ACIACS  EQU     $8018           ;V1 has $8000, $8001
 ACIADA  EQU     $8019
@@ -71,7 +83,8 @@ RSTART  EQU     $C000
 
     ENDIF                       ; _E100 or default
     ENDIF                       ; _SIM
-    ENDIF                       ; MOMPASS < 2
+        restore
+    ENDIF                       ; HB_INC
 ; =[ Fini ]==================================================================
 ;/* Local Variables: */
 ;/* mode:asm         */

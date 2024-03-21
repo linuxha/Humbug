@@ -1,7 +1,7 @@
-        ifndef   bitfuncsinc    ; avoid multiple inclusion
+        ifndef   MC6800_INC    ; avoid multiple inclusion
 MC6800_INC      equ      1
 
-        ;save
+        save
         ;listing off   ; no listing over this file
 
         if       mompass=1
@@ -123,7 +123,9 @@ _Lo         set     ((_A&255)<<8)/255                   ; ... but need 'include 
 
 ;* X <- B + X
 abx     MACRO
+        if       mompass=1
 	warning "Check this 6800 code (was abx)"
+        endif
 
         stx     SAVEX           ;m Save X to SAVEX or XHI
         addb    SAVEX+1         ;m add B to X lo
@@ -242,6 +244,6 @@ _Lo         set     ((_A&255)<<8)/255                   ; ... but need 'include 
 ;/* mode:asm         */
 ;/* End:             */
 
-        ;restore                 ; allow listing again
+        restore                 ; allow listing again
 
         endif                   ; MC6800_INC
