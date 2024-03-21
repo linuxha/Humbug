@@ -50,6 +50,15 @@ being self modifiying code. .
 
 # History
 
+March 20, 2024
+
+Fixed up AD (ASCII Dump) so it display 16 octets at a time. HD only does 8 at a
+time. I've stolen LO (Load S19 file) from Mikbug. I've added PU (Punch S19) but
+this is a work in progress.Found that SAVEX is being used by something while
+testing PU. Switched to USAVEX. Should expect that as the 6800 doesn't have a
+pshx/pulx. Some more of the varaibles are getting comments. Hope to remove
+redundancies soon.
+
 March 19, 2024
 
 Code assembles and some functions work. The code is still questionable at this time.
@@ -60,6 +69,39 @@ Current status is that the code assembles but that doesn't mean it works. This c
 is a mash of the 6801/MC10 code which has a keyboard and video output. The 6800 needs to deal with a serial port (9600 8,N,1). Additionally the RAM usage is a mess. There's variables in $7300, variables in $7400. The variables in $7400 should be okay. But I stuffed the mystery variable from the MC10 (remember the code overwrote itself) at the end of $7300. I know these variables are either the starting $7300 or $7400 variables. Also the current hb7500.asm is writing to $4XXX which is OS RAM on the MC10. So the related code needs to be fixed.
 
 # Documentation
+
+Anything that has been checked (X) is running okay but not heavily tested. Everthing else either hasn't been tested or is broken. Assume broken.
+
+- [X] AD - ASCII Dump
+- [ ] AI - ASCII Input
+- [ ] AO - ASMTAPE1CII Output (Oh not Zero)
+- [ ] AT - Analyze Tape (MC10)
+- [ ] BA - Change Baud
+- [X] BP - Print Break points
+- [X] BR - set/reset Breakpoints
+- [ ] CO - Continue (after a break)
+- [ ] CS - Checksum
+- [ ] DE - Desemble (not Disassemble, only bytes)
+- [ ] EX - Exit to BASIC (MC10)
+- [ ] FI - Find 1, 2 or 3 bytes
+- [ ] FM - Fill Memory
+- [X] HD - Hex Dump
+- [X] HE - Help
+- [X] JU - Jump (actually JSR)
+- [X] LO - LOAD S1
+- [ ] MC - Memory Compare
+- [X] ME - Memory Examine/Edit
+- [X] MM - Memory Move
+- [ ] MT - Memory Test
+- [ ] PU - Punch S1
+- [ ] RC - Register Change
+- [X] RE - Register Examine
+- [ ] SA - CSAVEM to cassette
+- [ ] SS - Single Step (lots of limitations, careful)
+- [ ] ST - Start SS (if no Breakpoint)
+- [X] !! - Monitor Reset (Cold start)
+- [X] U1 - User 1
+- [X] U2 - User 2
 
 # Files
 
