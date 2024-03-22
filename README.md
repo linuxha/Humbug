@@ -50,6 +50,10 @@ being self modifiying code. .
 
 # History
 
+March 21, 2024
+
+Fixed up AI (ASCII Input) and AO (ASCII Output)
+
 March 20, 2024
 
 Fixed up AD (ASCII Dump) so it display 16 octets at a time. HD only does 8 at a
@@ -73,18 +77,18 @@ is a mash of the 6801/MC10 code which has a keyboard and video output. The 6800 
 Anything that has been checked (X) is running okay but not heavily tested. Everthing else either hasn't been tested or is broken. Assume broken.
 
 - [X] AD - ASCII Dump
-- [ ] AI - ASCII Input
-- [ ] AO - ASMTAPE1CII Output (Oh not Zero)
+- [X] AI - ASCII Input
+- [X] AO - ASMTAPE1CII Output (Oh not Zero)
 - [ ] AT - Analyze Tape (MC10)
 - [ ] BA - Change Baud
 - [X] BP - Print Break points
 - [X] BR - set/reset Breakpoints
 - [ ] CO - Continue (after a break)
-- [ ] CS - Checksum
-- [ ] DE - Desemble (not Disassemble, only bytes)
+- [X] CS - Checksum
+- [X] DE - Desemble (not Disassemble, only bytes)
 - [ ] EX - Exit to BASIC (MC10)
 - [ ] FI - Find 1, 2 or 3 bytes
-- [ ] FM - Fill Memory
+- [X] FM - Fill Memory
 - [X] HD - Hex Dump
 - [X] HE - Help
 - [X] JU - Jump (actually JSR)
@@ -102,6 +106,8 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] !! - Monitor Reset (Cold start)
 - [X] U1 - User 1
 - [X] U2 - User 2
+- [ ] FL - Boot Flex (not written)
+- [ ] OS - Boot other OS (not written)
 
 # Files
 
