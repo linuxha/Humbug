@@ -433,9 +433,11 @@ NXT3	ldaa	#$3F            ; 3F = '?'
 	jsr	OUTEEE          ; (L 7769)
 	bra	NXTCMD          ; (L 7594)
 ;
-HBUGSTR:fcc     "HUMBUG+(C) 1983 P. STARK\4" ; S447B:
+HBUGSTR fcc     "HUMBUG+(C) 1983 P. STARK" ; S447B:
+VER     fcc     " 1.0.10\4"
+;* -----------------------------------------------------------------------------
 ;
-;
+; Max # of commands in table: 64
 ;
 ;;; ============================================================================
 ;;;
@@ -487,15 +489,14 @@ HBUGSTR:fcc     "HUMBUG+(C) 1983 P. STARK\4" ; S447B:
 ;;; ============================================================================
 COMTAB:                         ;* 75E6 - 764E (!! last command at 764C)
 L75DC:
-	FCC     "AD"            ; ASCII Dump
+        FCC     "AD"            ; ASCII Dump
         FDB     ADINST          ; $7C85
         FCC     "AI"            ; ASCII Input
         FDB     AIINST          ; $7E77 - Last byte code, $4CFF ???
-        FCC     "AO" 		; ASCII Output Oh not Zero
+        FCC     "AO"            ; ASCII Output Oh not Zero
         FDB     AOINST          ; $7EA8
         FCC     "AT"            ; Analyze Tape
         FDB     ATINST          ; $7817
-BASIC:               		;* L45EC/X45EC 0x45EC Not BASIC - Change BAUD
         FCC     "BA"            ; Change Baud
         FDB     BAINST          ; $77DA
         FCC     "BP"            ; Print Break points
@@ -505,7 +506,7 @@ BASIC:               		;* L45EC/X45EC 0x45EC Not BASIC - Change BAUD
         FCC     "CO"            ; Continue (after a break)
         FDB     COINST          ; $7B67
         FCC     "CS"            ; Checksum
-        FDB     CSINST		; $7E57
+        FDB     CSINST          ; $7E57
         FCC     "DE"            ; Desemble (not Disassemble, only bytes)
         FDB     DEINST          ; $79B4
 L4504:  FCC     "EX"            ; Exit to BASIC
@@ -549,6 +550,9 @@ L4504:  FCC     "EX"            ; Exit to BASIC
 ;;; 
         FCC     "!!"            ; Monitor Reset
         FDB     MONRST          ; $7530
+;
+        FCC     "CL"            ;* Clear the screen
+        FDB     CLINST          ;*
         ;;
         ;; Extra User commands
         ;; 
@@ -940,14 +944,14 @@ L77AB:	pulb
 	rts
     ELSE
 ;*	OUTPUT ONE CHAR 
-OUTEEE	PSH	A
-OUTEEE1	LDAA	ACIACS
-	ASRA
-	ASRA
-	BCC	OUTEEE1
-	PULA
-	STAA 	ACIADA
-	RTS
+OUTEEE	psha
+OUTEEE1	ldaa	ACIACS
+	asra
+	asra
+	bcc	OUTEEE1
+	pula
+	staa 	ACIADA
+	rts
 ; 
     ENDIF
 ;
@@ -1769,7 +1773,7 @@ HD6	inx
 	cmpa	#$20            ; Space?
 	bcc	HD8             ;* L7CF6
 L7CF4:
-HD7	ldaa	#$2E
+HD7	ldaa	#$2E            ;* $2E = dot
 L7CF6:
 HD8	jsr	OUTEEE
 	decb
@@ -1833,7 +1837,7 @@ AD6	inx
 	cmpa	#$20            ; Space?
 	bcc	AD8             ;* L7CF6
 
-AD7	ldaa	#$2E            ;* ?
+AD7	ldaa	#$2E            ;* $2E = dot
 
 AD8	jsr	OUTEEE
 	decb
@@ -2013,6 +2017,7 @@ L7E4E:
 	bne	L7E4E
 	rts
 ;
+;* -[ CS - Cheksum ]------------------------------------------------------------
 	;; CS
 L7E57:  
 CSINST: jsr	FROMTO          ; L7957
@@ -2034,6 +2039,33 @@ L7E6B:
 L7E74:
 	jmp	OUT4HS          ; L76D6
 ;
+;* -[ S19 Checksum ]------------------------------------------------------------
+;
+; The check-sum is calculated by summing, in HEX, all of the 2-character bytes on
+; the line starting wit the third and fourth characters (the length byte), and
+; running up to the check-sum byte.
+;
+; The following example record:
+;
+; S1137AF00A0A0D0000000000000000000000000061
+;   ^
+; is decoded to show how the checksum value is calculated. The following example
+; uses a dollar sign ($) to indicate a hexadecimal value (a Motorola convention):
+;
+;     Add: Add each byte $13 + $7A + $F0 + $0A + $0A + $0D + $00 + ... + $00 =
+;          $019E sum.
+;
+;     Mask: Discard the most significant byte ($01) of the sum and retain the
+;           least significant byte (LSB), which is $9E.
+;
+;     Complement: Compute the ones' complement of the LSB, which is $61.
+;
+; In the C programming language, the sum is converted into the checksum by:
+;     0xFF - (sum & 0xFF)
+;
+;* -----------------------------------------------------------------------------
+
+;* -----------------------------------------------------------------------------
 	;; AI
 L7E77:  
 AIINST: jsr	FROMTO          ; L7957
@@ -2051,10 +2083,13 @@ L7E87:
 	stx	ENDA            ;* USRSTK2         ; X7707
 	cpx	X7711
 	bne	L7E87
+        rts
+
 L7E99:
 	ldx	#ERRST          ; $7EA1
 	jsr	PDATA
-	bra	L7E99
+	rts
+;	bra	L7E99
 
 ERRST   fcc     " ERROR\4"      ; L7EA1
 	;;
@@ -2067,9 +2102,9 @@ AOINST: jsr	FROMTO          ;* GET ADDRESS RANGE (L 7957)
 L7EB1:
 AOINST1:ldaa	0,X             ;* GET NEXT CHARACTER
 	jsr	OUTEEE          ;* OUTPUT IT (L 7769)
+	inx                     ;*
 	cpx	ENDA            ;* SEE IF DONE (USRSTK - X 7707)
-	beq	AOINST1         ;* YES (L 7EBE)
-	inx
+	blt	AOINST1         ;* YES (L 7EBE)
 	bra	AOEXIT          ;* REPEAT IF NOT (L 7EB1)
 L7EBE:
 AOEXIT: rts                     ;* WHEN DONE
@@ -2350,6 +2385,11 @@ S0ST    FCC     "S00B00005820\r\n\4" ;*
 S1ST    FCC     "S110\4"             ;*
 S9ST    FCC     "S9030000FC\r\n\4"   ;*
 DMYST   FCC     "xx\r\n\4"
+
+CLINST  ldaa    #CLS            ;* Ctrl-L
+        jsr     OUTEEE          ;*
+        rts
+
 ;* -----------------------------------------------------------------------------
         ;;
         ;; @FIXME: This needs a proper clean up with rmb
