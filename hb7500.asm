@@ -207,7 +207,7 @@ P1STAT  RMB     1               ;* Port 1
 ; D002
 VSTAT   RMB     1               ;*
 ; D003
-DSTAT   RMB     1               ;* BSTAT? DSTAT?
+DSTAT   RMB     1               ;* 
 ; D004
 PASTAT  RMB     1               ;* Pause flag
 ; D005
@@ -679,8 +679,8 @@ INEXIT: rts                     ; 0-9 A-F -> $00 - $0F (L 76CC:)
         ;;
         ;; OUT2H  - Output Reg X as a 2 char Hex value
         ;; 
-OUT2H:	ldaa	0,X             ; (L 76CD:)
-	bsr	L76A4           ; OUTHL ?
+OUT2H   ldaa	0,X             ; (L 76CD)
+	bsr	OUTHL           ; (L 76A4)
 	ldaa	0,X
 	inx
 	bra	OUTHR           ; (L 76A8)
@@ -2323,68 +2323,92 @@ LDEXIT  nop
 ;
 ; Punch it! (WIP and not working)
 ;
+; BEGA   - Starting address
+; ENDA   - End address
+; CKSM   - Checksum
+; BYTECT - Byte count
+;
+; X      - Address
+; A      - checksum
+; B      - char count for line
+;
+; PDATA - String address in X, terminated with \4
+; OUT2H - Output Reg X as a 2 char Hex value
+;
 PUINST
 PUNCH   ldx     #PUNCHST        ;*
         jsr     PDATA           ;*
         jsr     FROMTO          ;*
         ldx     BEGA            ;* Get the starting address
-        stx     USAVEX           ;*
+        stx     USAVEX          ;*
         stx     X770B           ;* Not sure what this is but it's temp now XTEMP?
         jsr     CRLF            ;*
 ;
         ldx     #S0ST           ;*
         jsr     PDATA           ;*
+;*
+;* S113xxxx\4
+;
 NXTADD  ldx     #S1ST           ;*
         jsr     PDATA           ;*
+        ldaa    #$13            ;* Add count (to 0, so set count)
+        adda    USAVEX          ;* Add Hi addr byte
+        adda    USAVEX+1        ;* Add Lo addr byte
         ;;
         ;; Send address & incremment address by $10
         ;; and calculate the CKSM for the address
         ;;
-        ldx     #USAVEX          ;* Get the Address
+        ldx     #USAVEX         ;* Get the Address
+        psha
         jsr     OUT2H           ;* Output 4 Hex
         jsr     OUT2H           ;*
+	pula
         nop
         ;;
         ;; Not we need to send 16 bytes as hex
         ;; And calculate the CKSM for all the data
         ;;
-        ldab    #16             ;* 
-NXTHX1  ldx     USAVEX           ;* Get the byte at the address
-        jsr     OUT2H           ;* Print it
-        stx     USAVEX           ;* Save it
+        ldab    #16             ;* Load rest of the count (count & addr hi+lo already done) 
+NXTHX1  ldx     USAVEX          ;* Load the address
+        adda    $00,X           ;* Add *addr (contents of) #FIXME
+        psha                    ;* Save cksum (OUT2CH clobbers A)
+        jsr     OUT2H           ;* Print *addr
+        pula                    ;* Restore cksm
+        stx     USAVEX          ;* Save it
         decb                    ;* Count down
         bne     NXTHX1          ;* until done with the line
         nop
+        psha                    ;* Save cksm
+        ;; Do maths - 0xFF - (sum & 0xFF) A = $FF, B = Cksm A = $FF - Cksm
+        ldaa    #$FF            ;* A = $FF
+        pulb                    ;* B = cksm
+        sba                     ;* A = A($FF) - B(cksm)
         ;;
         ;; Output the CKSM as Hex
         ;;
-        ldx     #DMYST          ;* Print the checksum
-        jsr     PDATA           ;*
+        staa    WHAT            ;* Save the CheckSum (use WHAT a TEMP)
+        ldx     #WHAT           ;* Load X the address of the Checksum
+        jsr     OUT2H
         nop
+        jsr     CRLF
         ;;
         ;; Check if we're done
         ;; 
 ;
-        ldx     USAVEX
+        ldx     USAVEX          ;* [X(HI)] - data16(HI), [X(LO)] - data16(LO)
         cpx     ENDA
-        bpl     PUEXIT
-        bra     NXTADD
-        nop
+        bpl     PUEXIT          ;* Is USAVEX > ENDA ?
+        bra     NXTADD          ;* No, then next addr
+        nop                     ;* Yes, then we're done
+;
 PUEXIT  ldx     #S9ST
-        jsr     PDATA
-        ldx     #BEGA
-        jsr     OUT4HS
-        ldx     #ENDA
-        jsr     OUT4HS
-        ldx     #USAVEX
-        jsr     OUT4HS
+        jsr     PDATA           ;* Output a default S9 string
         rts                     ;*
 
 PUNCHST FCC     "Punch \4"           ;*
 S0ST    FCC     "S00B00005820\r\n\4" ;*
-S1ST    FCC     "S110\4"             ;*
+S1ST    FCC     "S113\4"             ;*
 S9ST    FCC     "S9030000FC\r\n\4"   ;*
-DMYST   FCC     "xx\r\n\4"
 
 CLINST  ldaa    #CLS            ;* Ctrl-L
         jsr     OUTEEE          ;*
