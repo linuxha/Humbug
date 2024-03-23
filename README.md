@@ -50,6 +50,14 @@ being self modifiying code. .
 
 # History
 
+March 22, 2024
+
+I'm overly pleased with myself. I couldn't find a PUnch routine so I
+wrote my own. While it's only a few bytes long it's all mine. I did
+get bit by bsr/jsr to various routines. They clobbered the registers I
+was using. Still working on getting all the code working but I'm now
+working on the SS, JU and BR. I think BR is working but JU is wonky.
+
 March 21, 2024
 
 Fixed up AI (ASCII Input) and AO (ASCII Output)
@@ -97,7 +105,7 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] ME - Memory Examine/Edit
 - [X] MM - Memory Move
 - [ ] MT - Memory Test
-- [ ] PU - Punch S1
+- [X] PU - Punch S1
 - [ ] RC - Register Change
 - [X] RE - Register Examine
 - [ ] SA - CSAVEM to cassette
@@ -121,7 +129,7 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 | filter.py           | Python code to filter a symbol table                       |
 | hb7500.asm          | WIP, 6800 version of Peter Stark's MC10 Humbug ROM monitor |
 | hb7500.lst          | ASL file listing                                           |
-| hb7500d.asm         | Peter Stark's MC10 Humbug+ ROM monitor (bin mostly works)      |
+| hb7500d.asm         | Peter Stark's MC10 Humbug+ ROM monitor (bin mostly works)  |
 | hb7500d.lst         | ASL file listing                                           |
 | hb7500d.s19         | ASL S19 dumo of MC10 Humbug+ ROM monitor                   |
 | mikbug.asm          | Motorla MIKBUG ROM monitor                                 |
@@ -141,6 +149,9 @@ files. I am managing to put the files together into a workable file. At the mome
 humbug-mc.asm still contains a few 6801 op code that I need to rework with 6800 code.
 Replacing the adx OP code has been interesting but I think I have the equivalent code
 from Peter's articles.
+
+The MC6800.inc contains a few macros I'm experimenting with. Do be careful with them as
+I haven't documented the flags and the macros don't work with all addressing modes.
 
 # Sources
 
