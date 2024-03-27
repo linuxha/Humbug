@@ -8,6 +8,12 @@ MC6800_INC      equ      1
           message "MC6800 Compatibility Macros (C) 2024 Neil Cherry"
         endif
 
+printf1 MACRO   op
+        if       mompass=2
+          message "\{op}"
+        endif
+        ENDM
+
 ;* 
 ;* Macros for the 6800 to make it easier to back port 6801/6809 code
 ;* 
@@ -127,10 +133,18 @@ abx     MACRO
 	warning "Check this 6800 code (was abx)"
         endif
 
+        pshb
+        psha
+
         stx     SAVEX           ;m Save X to SAVEX or XHI
-        addb    SAVEX+1         ;m add B to X lo
-        adca    SAVEX           ;m add the CC to X hi
-	ldx     SAVEX+1         ;m retore X
+        addb    SAVEX+1         ;m add X lo to B
+        adca    SAVEX           ;m add the X hi + CC to A
+	std     SAVEX           ;m retore X
+        ldx     SAVEX           ;*
+
+	pula
+        pulb
+
         ENDM
 
 ;
@@ -239,6 +253,44 @@ _Lo         set     ((_A&255)<<8)/255                   ; ... but need 'include 
 ;         sbcb    ARG
 ;        endif
 ;        endm
+
+; BHS is an unofficial equivalent of BCC. It stands for Branch if Higher or Same.
+bhs     macro   op
+        bcc     op
+        endm
+
+; Branch Greater than, equal
+bge     macro   op
+        printf1 "BGE Macro not built yet"
+        bcc     op
+        endm
+
+; Branch Greater than, equal
+;bgt     macro   op
+;        printf1 "BGT Macro not built yet"
+;        bcc     op
+;        endm
+
+; Branch Greater than, equal
+;ble     macro   op
+;        printf1 "BLE Macro not built yet"
+;        bcc     op
+;        endm
+
+; Branch Greater than, equal
+;blt     macro   op
+;        printf1 "BLT Macro not built yet"
+;        bcc     op
+;        endm
+
+        printf1 "***\n*** Built the OpCode struct\n***"
+
+        dottedstructs   on
+
+OpCode  STRUCT
+txt     rmb     3               ;* 3 byte string
+addr    rmb     2               ;* function handler
+OpCode  ENDSTRUCT
 
 ;/* Local Variables: */
 ;/* mode:asm         */
