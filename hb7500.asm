@@ -121,7 +121,7 @@ IRQ     RMB     2               ;* A000
 BEGA    RMB     2               ;* A002 X7705
 ENDA    RMB     2               ;* A004 X7707
 NMI     RMB     2               ;* A006    09
-SPTR    RMB     2               ;* A008    0B & 0C 770C
+SP      RMB     2               ;* A008    0B & 0C 770C User stack pointer
 P0RADD  RMB     2               ;* A00A
 P0RECH  RMB     1               ;* A00C
 ;
@@ -137,10 +137,15 @@ BYTECT  RMB     1               ;
 ;
 SWIJMP  RMB     2               ;* A012
         RMB     52              ;* 0x36
-PC      RMB     2               ;* A048
+PC      RMB     2               ;* A048 Program Counter for the GO command
         RMB     53              ;* 
 STACK2
-USTACK  RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
+xSTACK  RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
+;       RMB     7               ;* RE & RC use this cc B A X PC SP
+
+        RMB     32
+USTKPTR RMB     2               ;* Now $73A0
+        RMB     32
 
 AMIDSIZ EQU     * - $7300
 
@@ -148,10 +153,10 @@ AMIDSIZ EQU     * - $7300
 ;* Temporary, until I figure out what these really are
 ;* These fall inside the code area (ROM) so you shouldn't write there
 ;*
-X76E9   RMB     2               ;* $76E9
-X76EB   RMB     1               ;* $76EB
+X76E9   RMB     2               ;* $76E9 now $73C2
+X76EB   RMB     1               ;* $76EB now $73C4
 BRTMP
-X76EC   RMB     1               ;* $76EC
+X76EC   RMB     1               ;* $76EC now $73C5
 X76ED   RMB     1               ;* $76ED
 X76EE   RMB     13              ;* $76EE
 X76FB   RMB     1               ;* $76FB
@@ -159,23 +164,24 @@ X76FC   RMB     1               ;* $76FC
 X76FD   RMB     2               ;* $76FD
 X76FF   RMB     2               ;* $76FF Some vect (puts MAIN here #7500)
 X7701   RMB     1               ;* $7701
-COLDSTF                         ;* Will contain the HBUGSTR addr after COLDST
+COLDSTF                         ;* Will contain the HBUGSTR addr after COLDST now $73DA
 X7702   RMB     2               ;* $7702
 X7704   RMB     1               ;* $7704
 X7705   RMB     1               ;* $7705 (Begin?)
 X7706   RMB     1               ;* $7706
-USRSTK2
+USRSTK2                         ;        now $73E0
 X7707   RMB     1               ;* $7707 (End?)
 X7708   RMB     1               ;* $7708
 X7709   RMB     1               ;* $7709
 X770A   RMB     1               ;* $770A
 X770B   RMB     1               ;* $770B
-X770C   RMB     1               ;* $770C
+X770C   RMB     1               ;* $770C Used by AD for From, Nope it's USTACk
 X770D   RMB     2               ;* $770D
-SP
-USRSTK
-X770F   RMB     2               ;* $770F USRSTK (which is also elsewhere)
-TMPSTR
+xSP
+xUSTACK                          ;*                                      <- USTACK ($73E0 now)
+xUSRSTK
+xX770F   RMB     2               ;* $770F USRSTK (which is also elsewhere)
+TMPSTR                          ;        now $73EA
 X7711   RMB     1               ;* $7711
 X7712   RMB     1               ;* $7712
 
@@ -350,6 +356,11 @@ RESTART lds	#STACK          ;* $4EA0 $7FA0
         stx     USR1            ;*
         stx     USR2            ;*
 ;;;
+;;;* Need to init the U1 & U2 here
+;;;
+        ldx     #USTKPTR        ;* Set both to WARMST as default
+        stx     SP              ;*
+;;;
 ;;;* Need to init the ACIA here
 ;;;
 	ldaa	#CLS            ;* FF (FormFeed - Clears the scr)
@@ -434,7 +445,7 @@ NXT3	ldaa	#$3F            ; 3F = '?'
 	bra	NXTCMD          ; (L 7594)
 ;
 HBUGSTR fcc     "HUMBUG+(C) 1983 P. STARK" ; S447B:
-VER     fcc     " 1.0.10\4"
+VER     fcc     " 1.0.11\4"
 ;* -----------------------------------------------------------------------------
 ;
 ; Max # of commands in table: 64
@@ -709,7 +720,7 @@ OUTS:	ldaa	#SPACE          ; (L 76DA:)
         ;; Reg X contains jump address ?
         ;; 
 JUINST: bsr	BADDR           ; Get the address and put it in X (L 768A)
-	lds	#USTACK         ; $7FFF
+	lds	#SP             ; $7FFF
 	jsr	0,X		; JUMP to the User program (INFO: index jump)
 	jmp	WARMST          ; (L 756A)
 ; ------------------------------------------------------------------------------
@@ -1462,48 +1473,86 @@ BPR3:   jsr	OUTS            ; PRINT SPACE (L 76DA)
 L7ABF:
 BPR4:   stx	X7711
 	bra	BPR1            ;* Next BP (L 7A98)
-; ------------------------------------------------------------------------------
-;
-SWIHDLR:
-L7AC4:
-	sts	USRSTK          ; SAVE USER STACK PTR (X770F)
-	tsx                     ;
-	tst	6,X
-	bne	L7ACE
+; -[ SWIHDLR ]------------------------------------------------------------------
+;*
+;* SWI Handler 
+;*
+;* Stack order (pushed)
+;* 
+;* [[SP]] ← [PC(LO)],
+;* [[SP] - 1] ← [PC(HI)],
+;* [[SP] - 2] ← [X(LO)],
+;* [[SP] - 3] ← [X(HI)],
+;* [[SP] - 4] ← [A],
+;* [[SP] - 5] ← [B],
+;* [[SP] - 6] ← [SR],
+;* [SP] ← [SP] - 7,
+;* [PC(HI)] ← [$FFFA],
+;* [PC(LO)] ← [$FFFB]
+;* 
+;*
+;* One of the issues we have is that the SP isn't initiailzed
+;*
+;* *SP = $73A0
+;* 73A0 = 11 22 33 44 55 66 77
+;*        CC A  B  X     PC
+
+L7AC4
+SWIHDLR	sts	SP              ; SAVE USER STACK PTR (X770F)
+	tsx                     ; X now points to the stack
+	tst	6,X             ; Not sure what they're testing
+	bne	SWIH1           ;* L7ACE
 	dec	5,X
-L7ACE:
-	dec	6,X
-	sts	USRSTK          ;* X770F           ; SAVE USER STACK PTR (X770F)
+
+L7ACE
+SWIH1	dec	6,X
+	sts	SP              ;* SAVE USER STACK PTR (X770F)
 	lds	#STACK          ; RESET TO MON STACK - ($7FA0)
+
+;* -[ REINST ]------------------------------------------------------------------
+;*
+;* REINST seems to working perfectly (not sure about SP)
+;*
+;* *SP = $73A0
+;* 73A0 = 11 22 33 44 55 66 77
+;*        CC A  B  X     PC
+;*
+;* SP doesn't appear to be part of that
+;*
+;* -----------------------------------------------------------------------------
         ;; 
         ;; * 'RE' COMMAND - PRINT USER REGISTERS FROM STACK
 	;;
+    ifndef      ORIG
 REINST:	jsr	CRLF            ; (L 7717 - L 7AD6:)
 	ldx	#REMSG          ; $Register Message $7B1B
 	jsr	PDATA           ; (L 7724)
 	jsr	CRLF            ; (L 7717)
-	ldx	USRSTK          ;* SP              ; (X 770F) SP SPTR USRSTK @FIXME
-	ldab	1,X             ; GET CC REGISTER
+	ldx	SP              ;* SP - (X 770F) SP SPTR USRSTK @FIXME now $73E8 (ptr to $73A0)
+	ldab	1,X             ; GET CC REGISTER B = CC Reg
 	ldx	#$0006          ; SET COUNTER
-	aslb                    ; MOVE NEXT BIT INTO CARRY
-	aslb                    ;
-L7AEC:
+	aslb                    ; MOVE NEXT BIT INTO CARRY (11cvznih)
+	aslb                    ; 
 RELOOP: 
-	aslb                    ;
-	ldaa	#$30            ;
+	aslb                    ; B<<3
+	ldaa	#$30            ; Turn Carry bit into a '1' or '0'
 	adca	#$00            ; CONVERT TO ASCII
 	jsr	OUTEEE          ; PRINT IT (L 7769 - OUTEEE)
 	dex                     ; BUMP COUNTER
 	bne	RELOOP          ; PRINT NEXT BIT (L7AEC)
+;*
 	jsr	OUTS            ; PRINT SPACE (L76DA)
-	ldx	ENDA            ;* USRSTK 		;* X770F           ; POINT TO USER STACK AGAIN (X770F)
+	ldx	SP              ;* USRSTK 		;* X770F           ; POINT TO USER STACK AGAIN (X770F)
 	inx                     ; POINT TO A ACCUMULATOR
 	inx
 	jsr	OUT2HS          ; OUT2HS PRINT A (L76D8)
 	jsr	OUT2HS          ; PRINT B
 	jsr	OUT4HS          ; PRINT X INDEX (L76D6)
 	jsr	OUT4HS          ; PRINT PC
-	ldd	ENDA            ;* USRSTK          ;* X770F           ; (X770F) Get the current USER stack
+;*
+;* This is Wonky
+;*
+	ldd	SP              ;* (X770F) Get the current USER stack
     IFNDEF ORIG
         ;;* Cam't make this a macro
         ;;* ASL can't break a #$0007 into # 00 07
@@ -1512,58 +1561,133 @@ RELOOP:
     ELSE
 	addd	#$0007          ; RESTORE USER SP
     ENDIF
+;*
+;* Is this kind of a fancy/sneeky pshx ?
+;*
 	pshb                    ; TO VALUE IT HAD
 	psha                    ; TO VALUE IT HAD
 	tsx                     ; 
 	jsr	OUT4HS          ; OUT4HS PRINT SP
 	pulx                    ; FIX SP
 	jmp	NXTCMD          ; NXTCMD AND RETURN (NXTCMD)
+
+    else
+REINST  bsr     PRREGS          ;*
+	jmp	NXTCMD          ; NXTCMD AND RETURN (NXTCMD)
+    endif
+
+L7AEC
+;* -----------------------------------------------------------------------------
+;* 
+;* Okay this is really messesd up. We're pointing to $FFFF
+;* 
+PRREGS	jsr	CRLF            ; (L 7717 - L 7AD6:)
+	ldx	#REMSG          ; $Register Message $7B1B
+	jsr	PDATA           ; (L 7724)
+	jsr	CRLF            ; (L 7717)
+;* 
+;* Okay here's the problem. Our USTACK contains FFFF, we need it to pount to the
+;* User Stack
+;* 
+	ldx	SP              ;* (X 770F) SP SPTR USRSTK @FIXME
+;***
+;*** This prints the bits of the CC Reg
+;***
+	ldab	1,X             ; GET CC REGISTER
+	ldx	#$0006          ; SET COUNTER
+	aslb                    ; Get rid of the top 2 bits (always 1)
+	aslb                    ; MOVE NEXT BIT INTO CARRY
+;* -----------------------------------------------------------------------------
+;* 
+RELOOP1	aslb                    ;                            ;
+	ldaa	#$30            ;                            ;
+	adca	#$00            ; CONVERT TO ASCII           ;
+	jsr	OUTEEE          ; PRINT IT (L 7769 - OUTEEE) ;
+	dex                     ; BUMP COUNTER               ;
+	bne	RELOOP1         ; PRINT NEXT BIT (L7AEC)     ;
 ;
+	jsr	OUTS            ; PRINT SPACE (L76DA)        ;
+	ldx	SP              ;* POINT TO USER STACK AGAIN (X770F)
+	inx                     ; POINT TO A ACCUMULATOR
+	inx
+	jsr	OUT2HS          ; PRINT A (L76D8)
+	jsr	OUT2HS          ; PRINT B
+	jsr	OUT4HS          ; PRINT X INDEX (L76D6)
+	jsr	OUT4HS          ; PRINT PC
+;*
+;*
+;*
+	ldd	SP              ;* (X770F) Get the current USER stack ENDA
+    IFNDEF ORIG
+        ;;* Cam't make this a macro
+        ;;* ASL can't break a #$0007 into # 00 07
+        addb    #$07            ;*
+        adca    #$00            ;* Change back to value it had in USER PGM
+    ELSE
+	addd	#$0007          ; RESTORE USER SP
+    ENDIF
+	std     SAVEX           ;
+	pshb                    ; TO VALUE IT HAD
+	psha                    ; TO VALUE IT HAD
+	tsx                     ; 
+	jsr	OUT4HS          ; OUT4HS PRINT SP
+	pulx                    ; FIX SP
+;*
+;* I think I need to restore that stack, perhaps not ?
+;*
+	rts
+
 L7B1B:
 REMSG:  fcc     "hinzvc b  a  x    pc   sp\4"
+;* -----------------------------------------------------------------------------
+;*
+;* 
 L7B36:
-RCINST: ldx	#REGST          ;* Register change ($7B5B)
+;*
+;*
+;*
+RCINST ;bsr     PRREGS          ;* I want the REGs to print here
+        ldx	#REGST          ;* Register change ($7B5B)
 	jsr	PDATA
 	jsr	INEEE           ; (L 7733)
+;*
 	ldab	#$01
 	ldx	#WTFST          ; ($7B61)
-L7B44:
-	cmpa	0,X
-	beq	L7B51
-L7B48:
-	inx
+;L7B44                           ;
+RC1	cmpa	0,X
+	beq	RC5             ;* L7B51
+;L7B48
+RC2	inx
 	incb
 	cmpb	#$07
-L7B4C:
-	bne	L7B44
-L7B4E:
-	jmp	L75D5
+;L7B4C
+RC3	bne	RC1             ;* L7B44
+;L7B4E
+RC4	jmp	NXT3            ;* L75D5
 ;
-L7B51:
-	ldx	USRSTK          ; (X 770F)
-	abx                     ; X <- B + X Probably need inx and a ldx/stx SAVEX
+;L7B51
+;* Need *SP in X
+;* Need REG in B
+;* Clear A ?
+RC5	ldx	SP              ; (X 770F)
+        nop
+        clra
+;
+	abx                     ; X <- B + X (macro)
+;
 	stx	BADDRH          ; (X 7709) XHI/XLO
 	jmp	CHANGE0         ; (L 7646)
 ;
-L7B5B
-REGST   fcc     "REG: \4"
+REGST   fcc     "REG: \4"       ;* L7B5B
                                 ;
         ;;
-        ;; This needs some clean up, not sure what
-        ;; this is for but nothing calls it
+        ;; Registers, I've changed them but I'm not sure I'm correct
         ;; 
-    IFNDEF ORIG
-L7B61
-WTFST   fcc     'CBXX@'         ;* ???
-    ELSE
-L7B61   coma                    ; db $43 C
-	byt	$42, $41        ; db $42, $41 B A
-	aslb                    ; db $58 X
-L7B65	aslb                    ; db $58 X
-	negb                    ; db $40 @
-    ENDIF
+WTFST   fcc     'CBAXPS'        ;* L7B61 db  $43. $42, $41, %58, $58 $40 = CBAXX@
+
+;* -----------------------------------------------------------------------------
 L7B67
-COINST: lds	USRSTK          ; X770F
+COINST: lds	SP              ; X770F
 	rti                     ; $3B
 ;
 L7B6B:  nop
@@ -1578,9 +1702,9 @@ STINST: ldx	#SFRMST         ; $7B6C
 	ldx	#WARMST         ; $756A
 	stx	X7FFE
 	ldx	#X7FF6          ; $7FF6
-	stx	USRSTK          ; X770F
+	stx	SP              ; X770F
 L7B99:  
-SSINST: ldx	USRSTK          ; X770F
+SSINST: ldx	SP              ; X770F
 	ldx	6,X
 	stx	X76FD
 	stx	X7711
@@ -1641,7 +1765,7 @@ L7C05:
 L7C0A:
 	ldx	#L7C14
 	stx	X4210
-	lds	USRSTK          ; X770F
+	lds	SP              ; X770F
 	rti
 ; Is this L7C14?
 L7C14	ldx	SWIHDLR         ; #$7AC4
@@ -1701,7 +1825,7 @@ L7C62:
 L7C6D:
 	ldx	X76FD
 	ldab	1,X
-	ldx	USRSTK          ; X770F
+	ldx	SP              ; X770F
 	ldx	4,X
 	dex
 	dex
@@ -1710,7 +1834,7 @@ L7C6D:
 	bra	L7C3D
 ;
 L7C7E:
-	ldx	USRSTK          ; X770F
+	ldx	SP              ; X770F
 	ldx	8,X
 	bra	L7C43
                                 ;
@@ -2415,6 +2539,9 @@ CLINST  ldaa    #CLS            ;* Ctrl-L
         rts
 
 ;* -----------------------------------------------------------------------------
+
+
+;* -----------------------------------------------------------------------------
         ;;
         ;; @FIXME: This needs a proper clean up with rmb
         ;; 
@@ -2486,4 +2613,43 @@ ROMSIZE EQU     ROMEND - ROMBEG
 ;* X4350 - Top of RAM ($7500 - base of Humbug+)
 ; ------------------------------------------------------------------------------
 
+    ifdef NADA
+* ENTER FROM SOFTWARE INTERRUPT
+SF0     NOP
+SFE1    STS SP          SAVE TARGETS STACK POINTER
+* DECREMENT P COUNTER
+        TSX
+        TST 6,X
+        BNE *+4
+        DEC 5,X
+        DEC 6,X
+* PRINT CONTENTS OF STACK.
+PRINT   LDX #MCL
+        JSR PDATA1
+        LDX SP
+        INX
+        BSR OUT2HS      COND CODES
+        BSR OUT2HS      ACC B
+        BSR OUT2HS      ACC A
+        BSR OUT4HS      IXR
+        BSR OUT4HS      PGM COUNTER
+        LDX #SP
+        JSR OUT4HS      STACK POINTER
+SWTCTL  LDX SWIJMP
+        CPX #SF0
+        BEQ CONTR1
+
+CONTRL  LDS #STACK      SET CONTRL STACK POINTER
+        LDX #CTLPOR     RESET TO CONTROL PORT
+        STX PORADD
+        CLR PORECH      TURN ECHO ON
+        BSR SAVGET      GET PORT # AND TYPE
+        BEQ POF1
+        JSR PIAECH      SET PIA ECHO ON IF MP-C INTER
+POF1    JSR PNCHOF      TURN PUNCH OFF
+        JSR RDOFF       TURN READER OFF
+CONTR1  LDX #MCLOFF
+        JSR PDATA1      PRINT DATA STRING
+        BSR INEEE       READ COMMAND CHARACTER
+    endif
 ; =[ Fini ]==================================================================
