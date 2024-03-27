@@ -50,6 +50,14 @@ being self modifiying code. .
 
 # History
 
+March 27, 2024
+
+I think I finally fixed the RC (register change). Turns out I had problems
+with my abx macro. I've patched it up but I still need more testing on that
+macro. The reason I say I think is that I'm not yet ready to test with user
+code running in the monitor. Still have a few more things to work on like
+step (ST/SS) and go (GO).
+
 March 22, 2024
 
 I'm overly pleased with myself. I couldn't find a PUnch routine so I
@@ -106,7 +114,7 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] MM - Memory Move
 - [ ] MT - Memory Test
 - [X] PU - Punch S1
-- [ ] RC - Register Change
+- [X] RC - Register Change
 - [X] RE - Register Examine
 - [ ] SA - CSAVEM to cassette
 - [ ] SS - Single Step (lots of limitations, careful)
