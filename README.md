@@ -2,6 +2,7 @@
 
 Peter Stark's Humbug monitor for the Motorola 68xx. Copied from the
 Kilobaud/Micromputing articles of July, August and September of 1980.
+Copies can be found in the docs directory.
 
 And copied from a disassembly of the Tandy MC10 Humbug+ corrupted tape
 cassette image (hb7500).
@@ -12,8 +13,8 @@ a subset of the Registers and many techniques can't be used with the
 6800.
 
 If anyone has a copy of the Humbug ROMs for the 6800, please share! We
-can disassemble them and finally get a working set for the 6800. The
-6809 & 68K family sources are available.
+can disassemble them and finally get a working set for the 6800, the 6801,
+the 6809 & 68K family.
 
 # Table of Contents
 
@@ -46,9 +47,22 @@ for the 6800, 6802 & 6801.
 Right now this is just a mess of files. It now assembles but is a mess. I've
 had to resort to abusing all the memory I can use as I whittle away at the
 wayward RAM usage. I also need to keep an eye on any code that is unintentionally
-being self modifiying code. .
+being self modifiying code. But progress is being made on both subjects.
 
 # History
+
+March 30, 2024
+
+I'm now at the point where I can't do much more testing in the simulator. So
+I broke out the [memSIM2](https://github.com/nils-eilers/memSIM2). The USB to
+ROM interfaces make it much quicker to update code. Now things get weird. I've
+tested Mikbug, Smithbug and Humbug. Mikbug works, very limitted but works. Now
+when I start working on the RT68MX code I think I'll need the breakpoints and
+a few other niceties. So I've tested with Smithbug and it mostly works. Breakpoint
+setting gos off into lala-land. Will look inot that. Now Humbug just doesn't want
+to work. It boots, spits out a hello message, and accepts the AD command (and
+address input). No other commands work. Odd part is that it works fine in the
+simulator. I must be messing up the X register as it traverses the table.
 
 March 27, 2024
 
@@ -103,13 +117,13 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] CS - Checksum
 - [X] DE - Desemble (not Disassemble, only bytes)
 - [ ] EX - Exit to BASIC (MC10)
-- [ ] FI - Find 1, 2 or 3 bytes
+- [X] FI - Find 1, 2 or 3 bytes
 - [X] FM - Fill Memory
 - [X] HD - Hex Dump
 - [X] HE - Help
 - [X] JU - Jump (actually JSR)
 - [X] LO - LOAD S1
-- [ ] MC - Memory Compare
+- [X] MC - Memory Compare
 - [X] ME - Memory Examine/Edit
 - [X] MM - Memory Move
 - [ ] MT - Memory Test
@@ -160,6 +174,9 @@ from Peter's articles.
 
 The MC6800.inc contains a few macros I'm experimenting with. Do be careful with them as
 I haven't documented the flags and the macros don't work with all addressing modes.
+
+I will clean this up when done. I am trying to do that as I go along. I seem to be adding
+to the mess. ;-)
 
 # Sources
 
