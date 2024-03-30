@@ -5,6 +5,19 @@ HB_INC  equ      1
         if       mompass=1
           message "Humbug IO equates (C) 2024 Neil Cherry"
         endif
+
+  IFDEF _SIM
+TYPE    EQU     1
+  ENDIF
+
+  IFDEF _SIM2
+TYPE    EQU     2
+  ENDIF
+
+  IFDEF _E000
+TYPE    EQU     3
+ ENDIF
+
 ;;;
 ;;;
 ;;; 
@@ -12,13 +25,14 @@ HB_INC  equ      1
 SWI	EQU	$3F
 JMP	EQU	$7E
 
-    IFDEF _SIM
+    switch TYPE
+      CASE 1
 ;;;
 ;;; Setup for the simulator
 ;;;
         if       mompass=1
           message "***"
-          message "*** Built for the sim6800"
+          message "*** Built for the sim6800 IO@F000, ROM@E000"
           message "***"
         endif
 ;
@@ -26,15 +40,38 @@ ACIACS  EQU     $F000           ;V3 has $F000, $F001
 ACIADA  EQU     $F001
 ;
 RSTART  EQU     $E100           ; IO at $E000, ROM starts at $E100
-    ELSE
 ;
-    IFDEF _E000
+ARAM    EQU     $7300
+DRAM    EQU     $7400
+ROM     EQU     $7500
+
+    ;ELSEIF _SIM2 = 1
+      CASE 2
+;;;
+;;; Setup for the simulator
+;;;
+        if       mompass=1
+          message "***"
+          message "*** Built for the sim6800 IO@F000, ROM@E000"
+          message "***"
+        endif
+;
+ACIACS  EQU     $F000           ;V3 has $F000, $F001
+ACIADA  EQU     $F001
+;
+RSTART  EQU     $E100           ; IO at $E000, ROM starts at $E100
+;
+ARAM    EQU     $A000
+DRAM    EQU     $D000
+ROM     EQU     $E000
+;
+      CASE 3
 ;;;
 ;;; Adjusted for my MP-02
 ;;; 
         if       mompass=1
           message "***"
-          message "*** Built for the MP-02"
+          message "*** Built for the MP-02 IO@E000, ROM@E100"
           message "***"
         endif
 ;;; 
@@ -54,7 +91,12 @@ PIAS2B  EQU     PIAD2A+3
 ;;; Adjusted for my MP-02
 ;;; 
 RSTART  EQU     $E100           ; IO at $E000, ROM starts at $E100
-    ELSE
+;
+ARAM    EQU     $A000
+DRAM    EQU     $D000
+ROM     EQU     $E100
+;
+      ELSECASE
 ;;;
 ;;; Original (the way I got it)
 ;;; 
@@ -80,11 +122,10 @@ PIAS2B  EQU     $800B
 ;;; Original (the way I got it)
 ;;; 
 RSTART  EQU     $C000
-
-    ENDIF                       ; _E100 or default
-    ENDIF                       ; _SIM
+;
+    ENDCASE                     ; _SIM. _E100 or default
         restore
-    ENDIF                       ; HB_INC
+   ENDIF                       ; HB_INC
 ; =[ Fini ]==================================================================
 ;/* Local Variables: */
 ;/* mode:asm         */
