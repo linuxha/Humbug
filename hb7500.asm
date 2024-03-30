@@ -56,7 +56,7 @@
 ;	X76FD:	db	$00, $00
 ;	X76FF:	db	$00, $00        ; On init this gets clr'd (2Byte)
 ;	X7701:	db	$00             ; On init this gets clr'd (1Byte)
-;	X7702:	db	$75, $7B        ; Humbug+ str addr
+;	X7702:	db	$75, $7B        ; Humbug+ str addr (@addr of Humbug... string)
 ;	X7702           ;* Humbug not restart? Str already loaded?
 ;	X7702           ; !! jumps here (monitor reset)
 ;	X7704:	db      $0F             ; sei
@@ -109,35 +109,40 @@ CLS     EQU     $20
 ; ===========================================================================
 ;
 	MACEXP  on
-	org	$7300           ;
+;	org	$7300           ;
+	org	ARAM            ;
+ASTART  equ     *
 ; =[ MIKBUG RAM ]============================================================
         ;;*
         ;;* MIKBUG alsos uses the 128 byte scratchpag RAM @ $A000
 ;        ORG     $A000           ;*
 ;*
-;* Mixing MIKBU, Humbug & Humbug+ names
+;* Mixing MIKBUG, Humbug & Humbug+ names
 ;*
-IRQ     RMB     2               ;* A000
+COLDSTF                         ;* Will contain the HBUGSTR addr after COLDST was X7702
+IRQ     RMB     2               ;* A000 X7702 IRQ Handler address (Don't put Humbug... str here)
 BEGA    RMB     2               ;* A002 X7705
 ENDA    RMB     2               ;* A004 X7707
-NMI     RMB     2               ;* A006    09
+NMI     RMB     2               ;* A006    09 NMI Handler address
 SP      RMB     2               ;* A008    0B & 0C 770C User stack pointer
-P0RADD  RMB     2               ;* A00A
-P0RECH  RMB     1               ;* A00C
+P0RADD  RMB     2               ;* A00A    0D
+P0RECH  RMB     1               ;* A00C    0F
 ;
 XTEMP                           ;* Temp X  0D?
 BADDRH
 XHI     RMB     1               ;* A00D BADDRH
 BADDRL
 XLO     RMB     1               ;* A00E BADDRL
+
 CKSM
 CKSUM   RMB     1               ;* A00F Someone uses CJSUM with 3 byytes
 BYTECT  RMB     1               ;
         RMB     1
 ;
-SWIJMP  RMB     2               ;* A012
+SWIJMP  RMB     2               ;* A012 x77
         RMB     52              ;* 0x36
 PC      RMB     2               ;* A048 Program Counter for the GO command
+
         RMB     53              ;* 
 STACK2
 xSTACK  RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
@@ -162,31 +167,35 @@ X76EE   RMB     13              ;* $76EE
 X76FB   RMB     1               ;* $76FB
 X76FC   RMB     1               ;* $76FC
 X76FD   RMB     2               ;* $76FD
+
 X76FF   RMB     2               ;* $76FF Some vect (puts MAIN here #7500)
 X7701   RMB     1               ;* $7701
-COLDSTF                         ;* Will contain the HBUGSTR addr after COLDST now $73DA
+
 X7702   RMB     2               ;* $7702
 X7704   RMB     1               ;* $7704
-X7705   RMB     1               ;* $7705 (Begin?)
-X7706   RMB     1               ;* $7706
-USRSTK2                         ;        now $73E0
-X7707   RMB     1               ;* $7707 (End?)
-X7708   RMB     1               ;* $7708
-X7709   RMB     1               ;* $7709
-X770A   RMB     1               ;* $770A
-X770B   RMB     1               ;* $770B
+;X7705   RMB     1               ;* $7705 (Begin?)
+;X7706   RMB     1               ;* $7706
+;USRSTK2                         ;        now $73E0
+;X7707   RMB     1               ;* $7707 (End?)
+;X7708   RMB     1               ;* $7708
+;X7709   RMB     1               ;* $7709 BADDR BADDRH
+;X770A   RMB     1               ;* $770A       BADDRL
+X770B   RMB     1               ;* $770B XTEMP SP?
 X770C   RMB     1               ;* $770C Used by AD for From, Nope it's USTACk
 X770D   RMB     2               ;* $770D
-xSP
-xUSTACK                          ;*                                      <- USTACK ($73E0 now)
-xUSRSTK
+;xSP
+;xUSTACK                          ;*                                      <- USTACK ($73E0 now)
+;xUSRSTK
 xX770F   RMB     2               ;* $770F USRSTK (which is also elsewhere)
 TMPSTR                          ;        now $73EA
 X7711   RMB     1               ;* $7711
 X7712   RMB     1               ;* $7712
 
 DUMMY   RMB     2
-
+;* -----------------------------------------------------------------------------
+;*
+;* Variables in the middle of the source code?
+;*
 X7644   RMB     2               ;* $7644
 X75D8   RMB     2               ;* $75D8
 X7801   RMB     2               ;* $7801
@@ -199,10 +208,12 @@ X7FF6   RMB     2               ;* $7FF6
 X7FFC   RMB     2               ;* $7FFC
 X7FFE   RMB     1               ;* $7FFE
 
-AMEMSIZ EQU     * - $7300
+AMEMSIZ EQU     * - ASTART
 
 ; $A07F - 6810 128 bytes
-	org	$7400           ;
+;	org	$7400           ;
+	org	DRAM            ;
+BSTART  equ     *
 ;
 ; =[ Humbug RAM ]============================================================
 ;        ORG     $D000           ;*
@@ -257,7 +268,10 @@ COUNT   RMB     1               ;*
 ; D07F
 STACK   RMB     1               ;* Top of RAM (6810 @ $D000)
 ;
-BMEMSIZ EQU     * - $7400
+BMEMSIZ EQU     * - BSTART
+
+    IFDEF       MC10
+        ORG     $4000
 
 ;* $4xxx addresses
 X4000   RMB     2
@@ -273,6 +287,7 @@ X4257   RMB     2 		;* CFNSTR - Cassette file name
 X426A   RMB     2               ;* X426A <- MC10 memory
 X4275   RMB     2
 X4276   RMB     1
+    ENDIF
 
 UNKWN   RMB     12              ;* No idea yet
 
@@ -280,7 +295,16 @@ USR1    RMB     2
 USR2    RMB     2
 
 ;* -----------------------------------------------------------------------------
-	org	$7500           ;
+  IF ROM = $E100
+        ORG     $E000
+        message "With FILL at $E000"
+        ;; Fill up to FFD0 with FF
+        dc.b [(*+(ROM-*))&ROM-*]$ff
+  ENDIF
+;* -----------------------------------------------------------------------------
+;	org	$7500           ;
+	org	ROM             ;
+ROMBEG
         ;; The 6800 Humbug is from the Kilobaud-Thoughts13.pdf
         ;;                           & Kilobaud-Thoughts14.pdf
         ;; But referenced HUMBUG09.TXT for some of this code.
@@ -312,19 +336,15 @@ MAIN:	jmp	RESTART         ;* L7533  -  1  RESTRT
 	jmp	OUTHR           ;* L76A8  - 14
 	jmp	OUT2HS          ;* L76D8  - 15
 	jmp	OUT4HS          ;* L76D6  - 16
-        jmp     OUTS            ;*
+        jmp     OUTS            ;* njc added
 ;       ;; ------------------------------------------------------------------
         ;; I think it is safe to assume that the above 6803 table is not
         ;; correct, it doesn't line up with the 6800 article or the 6809
         ;; vectors.
 ;       ;; ------------------------------------------------------------------
 ;
-;752D:  dex                     ; $09     Odd nobody jumps here (???)
-;	ror	0,X             ; $66 $00
-ROMBEG
-MONRST  clr	X7702           ; !! jumps here (monitor reset)
-COLDST                          ; L7533:
-RESTART lds	#STACK          ;* $4EA0 $7FA0
+COLDST  clr	IRQ             ; !! jumps here (monitor reset)(X7702)
+RESTART lds	#STACK          ;* $4EA0 $7FA0 (L7533)
         ;; Load the contents of SWIVC $7AC4 (SWI Vector?) into X
         ;; Store it into SWIADDR ($4210 - OS addr)
         ;; Add the JMP ($7E)
@@ -369,10 +389,10 @@ RESTART lds	#STACK          ;* $4EA0 $7FA0
 	cpx	COLDSTF         ;* Humbug not restart? Str already loaded? (X7702)
 	beq	WARMST          ;* Yes? Then skip  (L 756A)
 ;;;
-;;;* Fill the BKTAB with FFFF (Break tables breaks x 3 bytes)
+;;;* Fill the BKTAB with FFFF (Break tables 4 breakpoints x 3 bytes)
 ;;; 
-	ldx	#BKTAB          ;* Dst JMP table $45EF
-	ldaa	#$FF            ;* Src JMP table $FF0C - There is no ldad #$FF0C
+	ldx	#BKTAB          ;* Break Table (4x3 bytes)
+	ldaa	#$FF            ;* Fill value
 	ldab	#$0C            ;* $0C bytes (12 bytes)
 
 FILL:   staa	0,X             ;* Fill 76EF -760D with $FF
@@ -384,12 +404,14 @@ WARMST: lds	#STACK          ; ($ 7FA0)
 ;*
 ;*	ACIA INITIALIZE
 ;*
-	LDAA	#$03	;* RESET CODE
+	LDAA	#$03            ;* RESET ACIA CODE
 	STAA	ACIACS
-	;NOP
-	NOP
-	;NOP
-	LDAA	#$15	;* 8N1 NON-INTERRUPT
+;
+	NOP                     ;* Was 3 NOPs
+	NOP                     ;* Was 3 NOPs
+	NOP                     ;* Was 3 NOPs
+;
+	LDAA	#$15            ;* 8N1 NON-INTERRUPT
         STAA	ACIACS
 ;*
 	jsr	CRLF            ; (L 7717)
@@ -406,32 +428,36 @@ NXTCMD: lds	#STACK          ; I think this is the real NXTCMD (L 7594 $7FA0)
 	staa	X7704
 	ldaa	#'*'            ; $3A = ':' $2A = '*' $23 = '#'
 	jsr	OUTEEE          ; (L 7769)
-	jsr	INEEE           ; (L 7733) njc
+	jsr	OUTS            ; Output a space
+	jsr	INEEE           ; Get the first character aA 0110 0100
+        anda    #%11011111      ; Push to uppercase
 	psha
 	jsr     INEEE           ;
-L75AB:
-NXT1	tab
+NXT1    anda    #%11011111      ; L75AB: Push to uppercase
+	tab
 	jsr	OUTS            ; (L 76DA)
 	pula
-	ldx	#TABEND-1        ; was X7644
+	ldx	#TABEND-1       ; was X7644
 	stx	X76EC
 ;*
 ;* @FIXME: Need to sub 4 so that it's at COMTAB when comparing
 ;*
 	ldx	#COMTAB-4       ; was X75D8
 L75B9:
-NXT2	inx
-	inx
-	inx
-	inx
-	cpx	X76EC           ; Check if we're past TABEND
-	;beq	NXT3            ; L75D5
+NXT2	inx                     ; A
+	inx                     ; B
+	inx                     ; addr
+	inx                     ; X now point to the next 'xx'
+	cpx	X76EC           ; past TABEND? - [X(HI)] - [addr16], [X(LO)] - [addr16 + 1]
+	;beq	NXT3            ; L75D5 (Z == 1) ? {[PC]←[PC]+disp+2} - Branch if equal 0
         nop
-	bgt	NXT3            ; L75B9
+	bgt	NXT3            ; L75B9 (S⊻O == 0) ? {[PC]←[PC]+disp+2} - Branch if greater than or equal to zero
 	cmpa	0,X
 	bne	NXT2            ; L75B9
+
 	cmpb	1,X
-	bne	NXT2          ; L75B9
+	bne	NXT2            ; L75B9
+
 	jsr	OUTS            ; Yea, match! (L76DA) 
 	inx                     ; Get past the  first char (H)
 	inx                     ; Get past the second char (E)
@@ -506,8 +532,10 @@ L75DC:
         FDB     AIINST          ; $7E77 - Last byte code, $4CFF ???
         FCC     "AO"            ; ASCII Output Oh not Zero
         FDB     AOINST          ; $7EA8
+    IFDEF       MC10
         FCC     "AT"            ; Analyze Tape
         FDB     ATINST          ; $7817
+    ENDIF
         FCC     "BA"            ; Change Baud
         FDB     BAINST          ; $77DA
         FCC     "BP"            ; Print Break points
@@ -520,8 +548,10 @@ L75DC:
         FDB     CSINST          ; $7E57
         FCC     "DE"            ; Desemble (not Disassemble, only bytes)
         FDB     DEINST          ; $79B4
+    IFDEF       MC10
 L4504:  FCC     "EX"            ; Exit to BASIC
         FDB     EXINST          ; $79A9
+    ENDIF
         FCC     "FI"            ; Find 1, 2 or 3 bytes
         FDB     FIINST          ; $7DB5
         FCC     "FM"            ; Fill Memory
@@ -534,7 +564,7 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FDB     JUINST          ; $76DE
 ;
         FCC     "LO"
-        FDB     LOAD            ; was MONRST
+        FDB     LOAD            ; was COLDST
 ;
         FCC     "MC"            ; Memory Compare
         FDB     MCINST          ; $7CFE
@@ -552,15 +582,17 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FDB     RCINST          ; $7B36
         FCC     "RE"            ; Register Examine
         FDB     REINST          ; $7AD6
+    IFDEF       MC10
         FCC     "SA"            ; CSAVEM to cassette
         FDB     SAINST          ; $78CC
+    ENDIF
         FCC     "SS"            ; Single Step (lots of limitations, careful)
         FDB     SSINST          ; $7B99
         FCC     "ST"            ; Start SS (if no Breakpoint)
         FDB     STINST          ; $7B81
 ;;; 
         FCC     "!!"            ; Monitor Reset
-        FDB     MONRST          ; $7530
+        FDB     COLDST          ; $7530
 ;
         FCC     "CL"            ;* Clear the screen
         FDB     CLINST          ;*
@@ -607,7 +639,7 @@ CHANGE2	stx	BADDRH          ; (X 7709)
 	bra	CHANGE0         ; (L 7646)
 ;
 L766D:
-CHANGE3 stx	X7709
+CHANGE3 stx	BADDRH          ;* X7709
 	cmpa	#'0'            ; 0
 	bcs	CHANGE0         ; (L 7646)
 	cmpa	#'F'            ; F
@@ -717,7 +749,6 @@ OUTS:	ldaa	#SPACE          ; (L 76DA:)
 ;
         ;;
         ;; JU - JUMP to user program
-        ;; Reg X contains jump address ?
         ;; 
 JUINST: bsr	BADDR           ; Get the address and put it in X (L 768A)
 	lds	#SP             ; $7FFF
@@ -1062,6 +1093,7 @@ L780F:                          ;
 ;                               ;
 	byt	$03, $00        ;
 ;
+    IFDEF       MC10
 	;; AT - Analyze Tape (???)
 L7817:                          ;
 ATINST: ldaa	#CLS            ;
@@ -1131,7 +1163,8 @@ L788A:
 	bra	L788A
 ;
 L78A7:
-	ldx	#USRSTK2        ; $7707
+;	ldx	#USRSTK2        ; $7707
+	ldx	#ENDA           ; $7707
 	jsr	OUT4HS          ; (L 76D6)
 	ldaa	#$2C
 	jsr	OUTEEE
@@ -1204,6 +1237,8 @@ L7911:
 	jsr	LFC8E           ; parse filename argument if given, evaluate filename and write Name Block
 	jsr	LFC5D           ; point X to first data byte then set start address for block write
 	rts
+    ENDIF
+
 ;
 L792D:  fcc     "\r\n  START"
 L7936:
@@ -1296,6 +1331,8 @@ GOTTWO
 ;
 FROMST  fcc     " FROM \4"      ; L799D:
 TOSTR   fcc     " TO \4"        ;L79A4:
+
+    IFDEF       MC10
 ;
 ;* -[ EX - Exit ]---------------------------------------------------------------
 ;
@@ -1305,6 +1342,8 @@ EXINST  ldx	#MAIN           ; $7500 COLDST
 	ldx	RESET           ; XFFFE
 	jmp	0,X             ; INFO: index jump (EXECJP)
 ;
+    ENDIF
+
         ;; DE
 L79B4:  
 DEINST: jsr	FROMTO          ; (L 7957)
@@ -1490,13 +1529,6 @@ BPR4:   stx	X7711
 ;* [PC(HI)] ← [$FFFA],
 ;* [PC(LO)] ← [$FFFB]
 ;* 
-;*
-;* One of the issues we have is that the SP isn't initiailzed
-;*
-;* *SP = $73A0
-;* 73A0 = 11 22 33 44 55 66 77
-;*        CC A  B  X     PC
-
 L7AC4
 SWIHDLR	sts	SP              ; SAVE USER STACK PTR (X770F)
 	tsx                     ; X now points to the stack
@@ -1759,17 +1791,25 @@ L7BF0:
 ;
 L7C01:
 NOST    fcc     "NO!\4"
+
+;* -----------------------------------------------------------------------------
 L7C05:
 	ldaa	#$FF
 	staa	X76E9
 L7C0A:
-	ldx	#L7C14
-	stx	X4210
+	ldx	#L7C14          ;* Some kind of Interrupt handler
+    IFDEF       MC10
+	stx	X4210           ;*
+    ENDIF
 	lds	SP              ; X770F
 	rti
+
+;* -----------------------------------------------------------------------------
 ; Is this L7C14?
 L7C14	ldx	SWIHDLR         ; #$7AC4
+    IFDEF       MC10
 	stx	X4210
+    ENDIF
 	ldx	X76EC
 	ldaa	X76EE
 	staa	0,X
@@ -2050,7 +2090,8 @@ L7D89:
 L7D9F:
 	ldaa	X770B
 	staa	0,X
-	cpx	USRSTK2         ; X7707
+;	cpx	USRSTK2         ; X7707
+	cpx	ENDA            ; X7707
 	beq	L7DAC
 	inx
 	bra	L7D6F
@@ -2117,7 +2158,8 @@ L7E1F:
 	bne	L7E1F
 	ldx	X7711
 L7E28:
-	cpx	USRSTK2         ; X7707
+;	cpx	USRSTK2         ; X7707
+	cpx	ENDA            ; X7707
 	beq	L7E30
 	inx
 	bra	L7DEE
@@ -2329,11 +2371,11 @@ FWD1	inx
 FWD2	stx	NEWLOC          ; (X 770D)
 	bra	FWARD           ; (L 7EFB)
 ;
-BWARD	ldd	USRSTK2         ; X7707
+BWARD	ldd	ENDA            ; X7707
 	subd	BEGA            ;* X7705           ;
 	addd	X770D           ;
 	std	X770D           ;
-	ldx	USRSTK2         ; X7707
+	ldx	ENDA            ; X7707
 	stx	X770B
 BWD1	ldx	X770B
 	cpx	BEGA            ;* X7705
@@ -2386,7 +2428,7 @@ HLOOP3: decb
 	bne	HLOOP2          ;* (L 7F52)
 	jsr	CRLF            ;* (L 7717)
 	bra	HLOOP1          ;* (L 7F50)
-ROMEND  EQU     *
+;
 ;
 IRQV    ldx     #IRQ
         jmp     0,X
@@ -2465,7 +2507,7 @@ PUNCH   ldx     #PUNCHST        ;*
         jsr     FROMTO          ;*
         ldx     BEGA            ;* Get the starting address
         stx     USAVEX          ;*
-        stx     X770B           ;* Not sure what this is but it's temp now XTEMP?
+        stx     X770B           ;* Not sure what this is but it's temp now XTEMP? SP?
         jsr     CRLF            ;*
 ;
         ldx     #S0ST           ;*
@@ -2540,6 +2582,7 @@ CLINST  ldaa    #CLS            ;* Ctrl-L
 
 ;* -----------------------------------------------------------------------------
 
+ROMEND  EQU     *+8             ;* ROM length plus 4 Vectors
 
 ;* -----------------------------------------------------------------------------
         ;;
@@ -2560,7 +2603,7 @@ CLINST  ldaa    #CLS            ;* Ctrl-L
         FDB     IRQV            ;* IRQ vector
         FDB     SWIV            ;* SWI vector
         FDB     NMIV            ;* NMI vector
-        FDB     COLDST           ;* Reset vector
+        FDB     COLDST          ;* Reset vector
 
 ROMSIZE EQU     ROMEND - ROMBEG
 
