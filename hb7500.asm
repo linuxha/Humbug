@@ -92,8 +92,18 @@
         ;;
         include "MC6800.inc"
 ;        include "motorola.inc"          ; Macros for things like fcc,db, etc.
-        include "humbug.inc"            ; This may need a lot of clean up
+;        include "humbug.inc"            ; This may need a lot of clean up
 	include "hb.inc"
+
+SPACE   equ     $20
+CR      equ     $0D
+LF      equ     $0A
+EOT     equ     $04
+CTRLH   equ     $08
+CTRLS   equ     $13
+
+SWIINST equ     $3F
+
         ;;
         ;; $4000 - $41FF - Video RAM
         ;; $4200 - $4334 - OS Variables
@@ -114,46 +124,113 @@ CLS     EQU     $20
 ASTART  equ     *
 ; =[ MIKBUG RAM ]============================================================
         ;;*
-        ;;* MIKBUG alsos uses the 128 byte scratchpag RAM @ $A000
-;        ORG     $A000           ;*
+        ;;* MIKBUG alsos uses the 128 byte scratchpag RAM @ $A000 (MC6810)
+        ;;*
 ;*
-;* Mixing MIKBUG, Humbug & Humbug+ names
+;* Mixing MIKBUG, Humbug & Humbug+ names, @FIXME: clean this up to be mikbug vars only
 ;*
-COLDSTF                         ;* Will contain the HBUGSTR addr after COLDST was X7702
+IOV                             ;* mikbug name
 IRQ     RMB     2               ;* A000 X7702 IRQ Handler address (Don't put Humbug... str here)
 BEGA    RMB     2               ;* A002 X7705
 ENDA    RMB     2               ;* A004 X7707
+NIO                             ;*  mikbug name
 NMI     RMB     2               ;* A006    09 NMI Handler address
 SP      RMB     2               ;* A008    0B & 0C 770C User stack pointer
+CKSM
+CKSUM   RMB     1               ;* A00A Someone uses CJSUM with 3 byytes
+BYTECT  RMB     1               ;* A00B
+;
+BADDRH                          ;* Humbug name
+XHI     RMB     1               ;* A00D BADDRH
+BADDRL                          ;* Humbug name
+XLO     RMB     1               ;* A00E BADDRL
+;
+TEMP    RMB     1               ;* A00F CHAR COUNT (INADD)
+TW      RMB     2               ;* A010 TEMP
+MCONT   RMB     1               ;* A012 TEMP
+XTEMP   RMB     2               ;* A013 X-REG TEMP STORAGE
+; 
+        org     ARAM+$48
+PC      RMB     2               ;* A048 Program Counter for the GO command
+        RMB     46              ;* 
+STACK   RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
+
+AMEMSIZ EQU     * - ASTART
+
+; $A07F - 6810 128 bytes
+;* -[ ARAM Fini ]---------------------------------------------------------------
+
+	org	DRAM            ;
+DSTART  equ     *
+;
+; =[ Humbug RAM ]============================================================
+;        ORG     $D000           ;*
+P0STAT  RMB     1               ;* (D000) Port 0
+P1STAT  RMB     1               ;* (D001) Port 1
+    ifdef VIDEO
+VSTAT   RMB     1               ;* (D002)
+    endif
+DSTAT   RMB     1               ;* (D003) not used
+PASTAT  RMB     1               ;* (D004) Pause flag
+;
 P0RADD  RMB     2               ;* A00A    0D
 P0RECH  RMB     1               ;* A00C    0F
 ;
-XTEMP                           ;* Temp X  0D?
-BADDRH
-XHI     RMB     1               ;* A00D BADDRH
-BADDRL
-XLO     RMB     1               ;* A00E BADDRL
-
-CKSM
-CKSUM   RMB     1               ;* A00F Someone uses CJSUM with 3 byytes
-BYTECT  RMB     1               ;
-        RMB     1
-;
+INEEXR  RMB     2               ;* (D005) In X Register
+OUTEXR  RMB     2               ;* (D007) Out X Register
+RETADD  RMB     2               ;* (D009) x
+PTRINC  RMB     1               ;* (D00B) x
+KBDINZ  RMB     1               ;* (D00C) x
+PAUCTR  RMB     1               ;* (D00D) Pause control
+        RMB     18
+USAVEX  RMB     2               ;* (D020) USAVEX was Save X
+WHAT    RMB     3               ;* (D022) x
+FINDNO  RMB     3               ;* (D025) x
+POWUP   RMB     4               ;* (D028) x thru D02B Power up flags
+SAVEX   RMB     2               ;* (D02C) Hmm, 2nd one
+USERPC  RMB     2               ;* (D02E) x
+NEXT    RMB     3               ;* (D030) x
+BRANCH  RMB     3               ;* (D033) x
+BKTAB   RMB     12              ;* (D036) Breakpoint able (4 bp - 3 bytes each)
+NEWLOC  RMB     2               ;* (D042) x
+INSTR   RMB     2               ;* (D044) x
+COUNT   RMB     1               ;* (D046) x
 SWIJMP  RMB     2               ;* A012 x77
-        RMB     52              ;* 0x36
-PC      RMB     2               ;* A048 Program Counter for the GO command
+;
+        RMB     56              ;* x
+USTKPTR
+HSTACK  RMB     1               ;* (D07F) Top of RAM (6810 @ $D000)
+;        RMB     32
+;USTKPTR RMB     2               ;* Now $73A0
+;        RMB     32
+	
+NXTTMP  RMB     2
+        
+DMIDSIZ EQU     * - DSTART
 
-        RMB     53              ;* 
-STACK2
-xSTACK  RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
-;       RMB     7               ;* RE & RC use this cc B A X PC SP
+    IFDEF       MC10
+        ORG     $4000
 
-        RMB     32
-USTKPTR RMB     2               ;* Now $73A0
-        RMB     32
+;* $4xxx addresses
+X4000   RMB     2
+X4020   RMB     2
+X4028   RMB     1
+X402A   RMB     1
+X402B   RMB     2
+X402D   RMB     2
+X4120   RMB     2
+X4200   RMB     2
+X4210   RMB     2
+X4257   RMB     2 		;* CFNSTR - Cassette file name
+X426A   RMB     2               ;* X426A <- MC10 memory
+X4275   RMB     2
+X4276   RMB     1
+    ENDIF
 
-AMIDSIZ EQU     * - $7300
+UNKWN   RMB     12              ;* No idea yet
 
+USR1    RMB     2               ;* njc, my stuff
+USR2    RMB     2               ;* njc, my stuff
 ;*
 ;* Temporary, until I figure out what these really are
 ;* These fall inside the code area (ROM) so you shouldn't write there
@@ -171,8 +248,8 @@ X76FD   RMB     2               ;* $76FD
 X76FF   RMB     2               ;* $76FF Some vect (puts MAIN here #7500)
 X7701   RMB     1               ;* $7701
 
-X7702   RMB     2               ;* $7702
-X7704   RMB     1               ;* $7704
+COLDSTF RMB     2               ;* Will contain the HBUGSTR addr after COLDST was X7702
+X7704   RMB     1               ;* ???
 ;X7705   RMB     1               ;* $7705 (Begin?)
 ;X7706   RMB     1               ;* $7706
 ;USRSTK2                         ;        now $73E0
@@ -204,95 +281,13 @@ X792D   RMB     2               ;* $792D
 ;*
 ;* Not sure what to do about these yet
 ;*
-X7FF6   RMB     2               ;* $7FF6
-X7FFC   RMB     2               ;* $7FFC
-X7FFE   RMB     1               ;* $7FFE
+X7FF6   RMB     2               ;* $7FF6 STSP
+X7FFC   RMB     2               ;* $7FFC STFROM
+X7FFE   RMB     2               ;* $7FFE something with ST SS start (loads #WARMST here)
 
-AMEMSIZ EQU     * - ASTART
+DMEMSIZ EQU     * - DSTART
 
-; $A07F - 6810 128 bytes
-;	org	$7400           ;
-	org	DRAM            ;
-BSTART  equ     *
-;
-; =[ Humbug RAM ]============================================================
-;        ORG     $D000           ;*
-; D000
-P0STAT  RMB     1               ;* Port 0
-; D001
-P1STAT  RMB     1               ;* Port 1
-; D002
-VSTAT   RMB     1               ;*
-; D003
-DSTAT   RMB     1               ;* 
-; D004
-PASTAT  RMB     1               ;* Pause flag
-; D005
-INEEXR  RMB     2               ;* In X Register
-; D007
-OUTEXR  RMB     2               ;* Out X Register
-; D009
-RETADD  RMB     2               ;*
-; D00B
-PTRINC  RMB     1               ;*
-; D00C
-KBDINZ  RMB     1               ;*
-; D00D
-PAUCTR  RMB     1               ;* Pause control
-        RMB     18
-; D020
-USAVEX  RMB     2               ;* USAVEX was Save X
-; D022
-WHAT    RMB     3               ;*
-; D025
-FINDNO  RMB     3               ;*
-; D028
-POWUP   RMB     4               ;*
-; D02C
-SAVEX   RMB     2               ;* Hmm, 2nd one
-; D02E
-USERPC  RMB     2               ;*
-; D030
-NEXT    RMB     3               ;*
-; D033
-BRANCH  RMB     3               ;*
-; D036
-BKTAB   RMB     12              ;* Breakpoint able (4 bp - 3 bytes each)
-; D042
-NEWLOC  RMB     2               ;*
-; D044
-INSTR   RMB     2               ;*
-; D046
-COUNT   RMB     1               ;*
-        RMB     56              ;*
-; D07F
-STACK   RMB     1               ;* Top of RAM (6810 @ $D000)
-;
-BMEMSIZ EQU     * - BSTART
-
-    IFDEF       MC10
-        ORG     $4000
-
-;* $4xxx addresses
-X4000   RMB     2
-X4020   RMB     2
-X4028   RMB     1
-X402A   RMB     1
-X402B   RMB     2
-X402D   RMB     2
-X4120   RMB     2
-X4200   RMB     2
-X4210   RMB     2
-X4257   RMB     2 		;* CFNSTR - Cassette file name
-X426A   RMB     2               ;* X426A <- MC10 memory
-X4275   RMB     2
-X4276   RMB     1
-    ENDIF
-
-UNKWN   RMB     12              ;* No idea yet
-
-USR1    RMB     2
-USR2    RMB     2
+;* -[ DRAM Fini ]---------------------------------------------------------------
 
 ;* -----------------------------------------------------------------------------
   IF ROM = $E100
@@ -329,7 +324,7 @@ MAIN:	jmp	RESTART         ;* L7533  -  1  RESTRT
         ;*
         ;* This sends a character(? String?) to the serial printer
         ;*
-	jmp	L77CD           ;* L77CD  -  9  OUTS
+	jmp	L77CD           ;* L77CD  -  9  OUTS  @FIXME:
 	jmp	PDATA           ;* PDATA  - 10  OUTHR
 	jmp	OUTCH           ;* L7717  - 12  OUT2HS
 	jmp	OUTS            ;* L76DA  - 13  OUT4HS
@@ -343,7 +338,7 @@ MAIN:	jmp	RESTART         ;* L7533  -  1  RESTRT
         ;; vectors.
 ;       ;; ------------------------------------------------------------------
 ;
-COLDST  clr	IRQ             ; !! jumps here (monitor reset)(X7702)
+COLDST  clr	COLDSTF         ; !! jumps here (monitor reset)(X7702)
 RESTART lds	#STACK          ;* $4EA0 $7FA0 (L7533)
         ;; Load the contents of SWIVC $7AC4 (SWI Vector?) into X
         ;; Store it into SWIADDR ($4210 - OS addr)
@@ -356,8 +351,9 @@ RESTART lds	#STACK          ;* $4EA0 $7FA0 (L7533)
 ;;; SWI
 ;;; NMI
 ;;; 
-        ;;                         jmp	SWIHDLR		; $7AC4
-	ldx	SWIHDLR         ;* *$7AC4 SWIVC ?
+	ldx	#SWIHDLR        ;* *$7AC4 SWIVC ?
+	stx	SWIJMP          ;* 
+    ifdef       MC10
 	stx	SWIADDR         ;* SWIADDR ($4210)
 	ldaa	#JMPINST        ;* #7E = jmp
 	staa	SWIVEC          ;* Hard coded as 420F (also in hb4400)
@@ -369,6 +365,7 @@ RESTART lds	#STACK          ;* $4EA0 $7FA0 (L7533)
 	clr	0,X             ;* $76FF = 0
 	clr	1,X             ;* $7700 = 0
 	clr	2,X             ;* $7701 = 0 (L 754E:)
+    endif
 ;;;
 ;;;* Need to init the U1 & U2 here
 ;;;
@@ -378,13 +375,14 @@ RESTART lds	#STACK          ;* $4EA0 $7FA0 (L7533)
 ;;;
 ;;;* Need to init the U1 & U2 here
 ;;;
-        ldx     #USTKPTR        ;* Set both to WARMST as default
+;       ldx     #USTKPTR        ;*
+        ldx     #STACK          ;*
         stx     SP              ;*
 ;;;
 ;;;* Need to init the ACIA here
 ;;;
-	ldaa	#CLS            ;* FF (FormFeed - Clears the scr)
-	jsr	OUTEEE          ;* was PDATA (L 7769)
+;	ldaa	#CLS            ;* FF (FormFeed - Clears the scr)
+;	jsr	OUTEEE          ;* was PDATA (L 7769)
 	ldx	#HBUGSTR        ;* $757B "HUMB..."
 	cpx	COLDSTF         ;* Humbug not restart? Str already loaded? (X7702)
 	beq	WARMST          ;* Yes? Then skip  (L 756A)
@@ -406,14 +404,24 @@ WARMST: lds	#STACK          ; ($ 7FA0)
 ;*
 	LDAA	#$03            ;* RESET ACIA CODE
 	STAA	ACIACS
-;
 	NOP                     ;* Was 3 NOPs
 	NOP                     ;* Was 3 NOPs
 	NOP                     ;* Was 3 NOPs
-;
 	LDAA	#$15            ;* 8N1 NON-INTERRUPT
         STAA	ACIACS
 ;*
+LOUT	LDAA	ACIACS
+	ASRA
+	ASRA
+	BCC	LOUT
+        ldaa    #'#'
+        staa    ACIADA
+	NOP                     ;* Was 3 NOPs
+	NOP                     ;* Was 3 NOPs
+	NOP                     ;* Was 3 NOPs
+;*
+        jsr     CLINST
+
 	jsr	CRLF            ; (L 7717)
 	ldx	#HBUGSTR
 	stx	COLDSTF         ; (X7702)
@@ -424,54 +432,72 @@ WARMST: lds	#STACK          ; ($ 7FA0)
         ;; 
 NXTCMD: lds	#STACK          ; I think this is the real NXTCMD (L 7594 $7FA0)
 	jsr	CRLF            ; L7717
-	ldaa	#$0F
-	staa	X7704
+
+	ldaa	#$0F            ; What is this for??? Probably pause control PAUCTR (Missing)
+;	staa	X7704           ; 
+	staa	PAUCTR          ; 
+
 	ldaa	#'*'            ; $3A = ':' $2A = '*' $23 = '#'
 	jsr	OUTEEE          ; (L 7769)
 	jsr	OUTS            ; Output a space
 	jsr	INEEE           ; Get the first character aA 0110 0100
+;*
+;* Okay this is cheating! Only A-Z,a-z will work. no other characters
+;*
         anda    #%11011111      ; Push to uppercase
 	psha
 	jsr     INEEE           ;
+;*
+;* Okay this is cheating! Only A-Z,a-z will work. no other characters
+;*
 NXT1    anda    #%11011111      ; L75AB: Push to uppercase
 	tab
 	jsr	OUTS            ; (L 76DA)
 	pula
-	ldx	#TABEND-1       ; was X7644
-	stx	X76EC
+;	ldx	#TABEND-1       ; was X7644 now E255-1
+;	stx	NXTTMP          ; (X76EC) now D084
+;	stx	BKTAB+6         ; (X76EC) now D084
 ;*
 ;* @FIXME: Need to sub 4 so that it's at COMTAB when comparing
 ;*
+;* COMTAB   = E1E1+4 E1E5
+;* BKTAB[0] = E1E7          (D038)
+;* BKTAB[4] = E203          (D03C)
+;* BKTAB[6] = E25A          (D03E)
+;* BKTAB    = E1E7 FFFF E203 E25A
+;* E203 is "CO" COINST(why is it always E203 in last
+;* BKTAB    = E1E7 FFFF E1EF E25A
 	ldx	#COMTAB-4       ; was X75D8
-L75B9:
+;L75B9:
 NXT2	inx                     ; A
 	inx                     ; B
 	inx                     ; addr
-	inx                     ; X now point to the next 'xx'
-	cpx	X76EC           ; past TABEND? - [X(HI)] - [addr16], [X(LO)] - [addr16 + 1]
+	inx                     ; X now point to the next 'xx' ldx 4,X?
+;	cpx	NXTTMP          ; (X76EC) past TABEND? - [X(HI)] - [addr16], [X(LO)] - [addr16 + 1]
+;	cpx	BKTAB+6         ; (X76EC) past TABEND? - [X(HI)] - [addr16], [X(LO)] - [addr16 + 1]
+	cpx	#TABEND          ; (X76EC) past TABEND? - [X(HI)] - [addr16], [X(LO)] - [addr16 + 1]
 	;beq	NXT3            ; L75D5 (Z == 1) ? {[PC]←[PC]+disp+2} - Branch if equal 0
         nop
-	bgt	NXT3            ; L75B9 (S⊻O == 0) ? {[PC]←[PC]+disp+2} - Branch if greater than or equal to zero
+	beq	NXT3            ; L75B9 (S⊻O == 0) ? {[PC]←[PC]+disp+2} - Branch if greater than or equal to zero
 	cmpa	0,X
 	bne	NXT2            ; L75B9
 
 	cmpb	1,X
 	bne	NXT2            ; L75B9
-
+;* Match 
 	jsr	OUTS            ; Yea, match! (L76DA) 
 	inx                     ; Get past the  first char (H)
 	inx                     ; Get past the second char (E)
 	ldx	0,X             ; Get the address
 	jsr	0,X             ; INFO: index jump to function@addr
 	bra	NXTCMD          ; (L 7594)
-;
-L75D5:
-NXT3	ldaa	#$3F            ; 3F = '?'
+; Not in the list               ; L75D5:
+NXT3	ldaa	#'?'            ; 3F = '?'
 	jsr	OUTEEE          ; (L 7769)
 	bra	NXTCMD          ; (L 7594)
 ;
-HBUGSTR fcc     "HUMBUG+(C) 1983 P. STARK" ; S447B:
-VER     fcc     " 1.0.11\4"
+HBUGSTR fcc     "\rHUMBUG+(C) 1983 P. STARK" ; S447B:
+VER     fcc     " 1.0.14\4"
 ;* -----------------------------------------------------------------------------
 ;
 ; Max # of commands in table: 64
@@ -556,6 +582,8 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FDB     FIINST          ; $7DB5
         FCC     "FM"            ; Fill Memory
         FDB     FMINST          ; $7E3E
+        FCC     "GO"            ; 
+        FDB     GOINST          ; 
         FCC     "HD"            ; Hex Dump
         FDB     HDINST          ; $7C85
         FCC     "HE"            ; Help
@@ -575,6 +603,8 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FCC     "MT"            ; Memory Test
         FDB     MTINST          ; $7D69
 ;
+        FCC     "PC"            ; Print PC (A048/9)
+        FDB     PCINST
         FCC     "PU"
         FDB     PUNCH
 ;
@@ -591,7 +621,7 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FCC     "ST"            ; Start SS (if no Breakpoint)
         FDB     STINST          ; $7B81
 ;;; 
-        FCC     "!!"            ; Monitor Reset
+        FCC     "XX"            ; Monitor Reset
         FDB     COLDST          ; $7530
 ;
         FCC     "CL"            ;* Clear the screen
@@ -599,10 +629,10 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         ;;
         ;; Extra User commands
         ;; 
-        FCC     "U1"
+        FCC     "UA"
         FDB     USR1V           ;
         ;; 
-        FCC     "U2"
+        FCC     "UB"
         FDB     USR2V           ;
         ;; 
 ;;; 
@@ -751,8 +781,32 @@ OUTS:	ldaa	#SPACE          ; (L 76DA:)
         ;; JU - JUMP to user program
         ;; 
 JUINST: bsr	BADDR           ; Get the address and put it in X (L 768A)
-	lds	#SP             ; $7FFF
+;	lds	#SP             ; $7FFF
+	lds	SP              ; $7FFF
 	jsr	0,X		; JUMP to the User program (INFO: index jump)
+	jmp	WARMST          ; (L 756A)
+; ------------------------------------------------------------------------------
+;
+; -[ Go ]-----------------------------------------------------------------------
+;
+        ;;
+        ;; JU - JUMP to user program
+        ;; 
+GOINST: ;ldx     PC              ;
+;	lds	#SP             ; $7FFF
+	;lds	SP              ; $7FFF
+	;jsr	0,X		; JUMP to the User program (INFO: index jump)
+	jmp	WARMST          ; (L 756A)
+;
+; -[ PC ]-----------------------------------------------------------------------
+;
+        ;;
+        ;; JU - JUMP to user program
+        ;; 
+PCINST: ;ldx     PC              ;
+;	lds	#SP             ; $7FFF
+	;lds	SP              ; $7FFF
+	;jsr	0,X		; JUMP to the User program (INFO: index jump)
 	jmp	WARMST          ; (L 756A)
 ; ------------------------------------------------------------------------------
 ; -[ Storage: 76E8 - 7716 = 2E ]------------------------------------------------
@@ -828,14 +882,17 @@ JUINST: bsr	BADDR           ; Get the address and put it in X (L 768A)
 ; ------------------------------------------------------------------------------
 OUTCH:
 CRLF:
-L7717:	pshx
+L7717:	;pshx
+        stx     OUTEXR
 	ldx	#CRLFST         ; ($771F)
 	bsr	PDATA
-	pulx
+	;pulx                    ;
+        ldx     OUTEXR
 	rts
 ;
 L771F:
-CRLFST: fcc     '\r\n\0\0\4'    ;* CR, LF, NUL, NUL, EOT
+;CRLFST: fcc     '\r\n\0\0\4'    ;* CR, LF, NUL, NUL, EOT
+CRLFST: fcc     '\n\r\4'        ;* CR, LF, NUL, NUL, EOT
         ;;
         ;;* PDATA - PRINT DATA STRING
         ;;
@@ -855,8 +912,17 @@ PDEXIT: pula                    ; (L 7731:)
 ;* INEEE - CHARACTER INPUT ROUTINE
 ;* This looks like INEEE
 ;
+; CR cancels
+; 0  turns port 0 on/off
+; 1  turns port 1 on/off
+; P  turns pause on/off
+; D  does the same for a user written port routine (?)
+; ^S
+; ^O
+;
 L7733:
-INEEE:  pshx                    ; Next
+INEEE:  ;pshx                    ; Next (savex it to SAVEX)
+        stx     INEEXR
 	pshb
 L7735:
 INRPT:  bsr	INCH7           ; Get input char (L 7763)
@@ -864,7 +930,8 @@ INRPT:  bsr	INCH7           ; Get input char (L 7763)
 	beq	GOTCS           ; Yes (L 7740)
 	bsr	OUTEEE          ; Echo (L 7769)
 	pulb
-	pulx
+;	pulx
+        ldx     INEEXR
 	rts                     ; And return
 ;
         ;; Control S Detected, Get and Interpret command
@@ -880,7 +947,7 @@ GETCMD: bsr	INCH7           ; (L 7763)
 	rts
 ;
 L774E:
-NOTO:   cmpa	#$50            ; P
+NOTO:   cmpa	#'P'            ; $50 P
 	bne	NOTP            ; Not P? (L 775B)
 	com	X7701
 	ldaa	#$0F            ; ^O Ctrl-Oh
@@ -1035,11 +1102,15 @@ IN81    ldaa    ACIACS          ;*
     ENDIF
 ;
 L77CD:
+    IFDEF       MC10
         ;; * Send character in ACCA to serial port printer
 	pshx
 	pshb
 	psha
 	jmp	PRTSER          ; (L F9D0)
+    ELSE
+        jmp     WARMST
+    endif
 ;
 L77D3:
 RATST   FCC     "RATE? \4"
@@ -1048,6 +1119,7 @@ L77DA:
 BAINST: ldx	#RATST          ; L77D3
 	jsr	PDATA           ;
 	jsr	L768A           ;
+    ifdef       MC10
 	pshx                    ;
 	pula                    ;
 	pulb                    ;
@@ -1092,6 +1164,12 @@ L780F:                          ;
 	ldaa	$0000           ;
 ;                               ;
 	byt	$03, $00        ;
+;
+    else
+        rts
+    endif
+;
+;
 ;
     IFDEF       MC10
 	;; AT - Analyze Tape (???)
@@ -1350,16 +1428,16 @@ DEINST: jsr	FROMTO          ; (L 7957)
 	ldx	BEGA            ;* X7705
 	stx	X7711
 L79BD:
-	bsr	L79CE
+DE1	bsr	DE2             ;* L79CE
 	ldaa	ENDA            ;* USRSTK2         ; X7707
 	ldab	ENDA+1          ;* X7708
 	subb	X7712           ; subd  X7711
 	sbca	X7711
-	bcc	L79BD
+	bcc	DE1             ;* L79BD
 	rts
 ;
 L79CE:
-	jsr	L7717
+DE2	jsr	CRLF            ;* L7717
 	ldx	#X7711
 	jsr	OUT4HS          ; (L 76D6)
 	jsr	OUTS            ; (L 76DA)
@@ -1368,42 +1446,42 @@ L79CE:
 	staa	X76FB
 	jsr	OUT2HS          ; (L 76D8)
 L79E5:
-	stx	X7711
+DE3	stx	X7711
 	clrb
 	ldaa	X76FB
 	anda	#$BF
 	cmpa	#$83            ;
-	beq	L7A0B
+	beq	DE4             ;* L7A0B
 	anda	#$FD
 	cmpa	#$8C            ;
-	beq	L7A0B
+	beq	DE4             ;* L7A0B
 	ldaa	X76FB
 	anda	#$F0
 	cmpa	#$20
-	beq	L7A0C
+	beq	DE5             ;* L7A0C
 	cmpa	#$60
-	bcs	L7A0D
+	bcs	DE6             ;* L7A0D
 	anda	#$30
 	cmpa	#$30
-	bne	L7A0C
+	bne	DE5             ;* L7A0C
 L7A0B:
-	incb
+DE4	incb
 L7A0C:
-	incb
+DE5	incb
 L7A0D:
-	stab	X76FC
-	beq	L7A22
+DE6	stab	X76FC
+	beq	DEEXIT          ;* L7A22
 	dec	X76FC
-	beq	L7A1C
+	beq	DE7             ;* L7A1C
 	jsr	OUT4HS          ; (L 76D6)
-	bra	L7A1F
+	bra	DE8             ;* L7A1F
 ;
 L7A1C:
-	jsr	OUT2HS          ; (L 76D8)
+DE7	jsr	OUT2HS          ; (L 76D8)
 L7A1F:
-	stx	X7711
+DE8	stx	X7711
 L7A22:
-	rts
+DEEXIT	rts
 ;
 ; ------------------------------------------------------------------------------
 	;; 
@@ -1529,6 +1607,7 @@ BPR4:   stx	X7711
 ;* [PC(HI)] ← [$FFFA],
 ;* [PC(LO)] ← [$FFFB]
 ;* 
+    ifdef       OLD
 L7AC4
 SWIHDLR	sts	SP              ; SAVE USER STACK PTR (X770F)
 	tsx                     ; X now points to the stack
@@ -1540,7 +1619,36 @@ L7ACE
 SWIH1	dec	6,X
 	sts	SP              ;* SAVE USER STACK PTR (X770F)
 	lds	#STACK          ; RESET TO MON STACK - ($7FA0)
-
+    else
+        ;*
+        ;* There doesn't seem to be much of a handler, so I'm stealing
+        ;* from other (mikbug) ROM monitors
+        ;*
+SWIHDLR
+SFE	STS	SP	;* SAVE TARGET'S STACK POINTER
+;*
+;*	DECREMENT P-COUNTER
+	TSX
+	TST	6,X
+	BNE	SFE1            ;* *+4
+	DEC	5,X
+SFE1	DEC	6,X
+;*
+;*	PRINT CONTENTS OF STACK
+;*
+PRINT	LDX	SP
+	INX
+	jsr	OUT2HS	;* CONDITION CODES
+	jsr	OUT2HS	;* ACC-B
+	jsr	OUT2HS	;* ACC-A
+	jsr	OUT4HS	;* X-REG
+	jsr	OUT4HS	;* P-COUNTER
+	LDX	#SP
+	jsr	OUT4HS	;* STACK POINTER
+;C2	jmp	CONTRL
+	jmp	NXTCMD
+;
+    endif
 ;* -[ REINST ]------------------------------------------------------------------
 ;*
 ;* REINST seems to working perfectly (not sure about SP)
@@ -1600,7 +1708,7 @@ RELOOP:
 	psha                    ; TO VALUE IT HAD
 	tsx                     ; 
 	jsr	OUT4HS          ; OUT4HS PRINT SP
-	pulx                    ; FIX SP
+	;pulx                    ; FIX SP
 	jmp	NXTCMD          ; NXTCMD AND RETURN (NXTCMD)
 
     else
@@ -1714,8 +1822,16 @@ REGST   fcc     "REG: \4"       ;* L7B5B
                                 ;
         ;;
         ;; Registers, I've changed them but I'm not sure I'm correct
+        ;;  Stack pull order
         ;; 
-WTFST   fcc     'CBAXPS'        ;* L7B61 db  $43. $42, $41, %58, $58 $40 = CBAXX@
+        ;; C - cc
+        ;; B - B acc
+        ;; A - A acc
+        ;; X - X reg
+        ;; P - PC reg
+        ;; S - Stack pointer
+        ;; 
+WTFST   fcc     'CBAXPS'        ;* L7B61 db  $43. $42, $41, $58, $58 $40 = CBAXX@
 
 ;* -----------------------------------------------------------------------------
 L7B67
@@ -1725,11 +1841,13 @@ COINST: lds	SP              ; X770F
 L7B6B:  nop
 L7B6C:
 SFRMST  fcc     "START FROM ADDRESS: \4"
-;
+;*
+;* @FIXME: This needs major work! The Xxxx and Lxxx ops are many
+;*
 L7B81:
 STINST: ldx	#SFRMST         ; $7B6C
 	jsr	PDATA
-	jsr	L768A
+	jsr	BADDR           ;* L768A
 	stx	X7FFC
 	ldx	#WARMST         ; $756A
 	stx	X7FFE
