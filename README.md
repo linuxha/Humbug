@@ -51,6 +51,21 @@ being self modifiying code. But progress is being made on both subjects.
 
 # History
 
+April  1, 2024
+
+Yeah, April 1 but no joke. I think I have SS working now. Yea! I went
+through the articles, clean up a bunch of variables and snuck a peak
+at Smithbug (which is broken). Still lots more work to do but Humbug
+may now be usable. :-)
+
+March 31, 2024
+
+Found a few bugs I let creep in, Hopefully I've fixed those. I Still a
+lot of variable to correct. Also I've managed to get Humbug to run on
+the board from the ROM emulator. While BPs work the SS and ST and
+anything to do with the SWI handling and stack are messed up. This
+comes down to the variables.
+
 March 30, 2024
 
 I'm now at the point where I can't do much more testing in the simulator. So
@@ -119,6 +134,7 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [ ] EX - Exit to BASIC (MC10)
 - [X] FI - Find 1, 2 or 3 bytes
 - [X] FM - Fill Memory
+- [ ] GO - Go to address pointed to by PC/A048
 - [X] HD - Hex Dump
 - [X] HE - Help
 - [X] JU - Jump (actually JSR)
@@ -127,17 +143,20 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] ME - Memory Examine/Edit
 - [X] MM - Memory Move
 - [ ] MT - Memory Test
+- [X] PC - Printe contents of PC/A048 (used with GO command)
 - [X] PU - Punch S1
 - [X] RC - Register Change
 - [X] RE - Register Examine
-- [ ] SA - CSAVEM to cassette
-- [ ] SS - Single Step (lots of limitations, careful)
+- [ ] SA - CSAVEM to cassette (MC10)
+- [X] SS - Single Step (lots of limitations, careful)
 - [ ] ST - Start SS (if no Breakpoint)
 - [X] !! - Monitor Reset (Cold start)
 - [X] U1 - User 1
 - [X] U2 - User 2
 - [ ] FL - Boot Flex (not written)
 - [ ] OS - Boot other OS (not written)
+
+Not written and MC10 code are not include yet.
 
 # Files
 
