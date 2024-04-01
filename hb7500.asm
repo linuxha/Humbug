@@ -103,6 +103,7 @@ CTRLH   equ     $08
 CTRLS   equ     $13
 
 SWIINST equ     $3F
+_SWI    equ     $3F
 
         ;;
         ;; $4000 - $41FF - Video RAM
@@ -153,9 +154,10 @@ XTEMP   RMB     2               ;* A013 X-REG TEMP STORAGE
         org     ARAM+$48
 PC      RMB     2               ;* A048 Program Counter for the GO command
         RMB     46              ;* 
-STACK   RMB     1               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
+USTACK   RMB     2               ;* A07F USRSTK USRSTK2 SP SPTR ? @FIXME
 
 AMEMSIZ EQU     * - ASTART
+
 
 ; $A07F - 6810 128 bytes
 ;* -[ ARAM Fini ]---------------------------------------------------------------
@@ -183,24 +185,25 @@ PTRINC  RMB     1               ;* (D00B) x
 KBDINZ  RMB     1               ;* (D00C) x
 PAUCTR  RMB     1               ;* (D00D) Pause control
         RMB     18
-USAVEX  RMB     2               ;* (D020) USAVEX was Save X
+USAVEX  RMB     2               ;* (D020) USAVEX was SAVEX X7711
 WHAT    RMB     3               ;* (D022) x
 FINDNO  RMB     3               ;* (D025) x
 POWUP   RMB     4               ;* (D028) x thru D02B Power up flags
-SAVEX   RMB     2               ;* (D02C) Hmm, 2nd one
-USERPC  RMB     2               ;* (D02E) x
-NEXT    RMB     3               ;* (D030) x
-BRANCH  RMB     3               ;* (D033) x
+SAVEX   RMB     2               ;* (D02C) Hmm, 2nd one, no 1st one :-) X7711 USAVEX
+USERPC  RMB     2               ;* (D02E) x was X76FD
+NEXT    RMB     2               ;* (D030) x
+SAVINST RMB     1               ;* (D032)
+BRANCH  RMB     3               ;* (D033) x (BRANCH+2 Next instruction?)
 BKTAB   RMB     12              ;* (D036) Breakpoint able (4 bp - 3 bytes each)
 NEWLOC  RMB     2               ;* (D042) x
-INSTR   RMB     2               ;* (D044) x
+INSTR   RMB     2               ;* (D044) x (x76FB)
 COUNT   RMB     1               ;* (D046) x
 SWIJMP  RMB     2               ;* A012 x77
 ;
         RMB     56              ;* x
 USTKPTR
-HSTACK  RMB     1               ;* (D07F) Top of RAM (6810 @ $D000)
-;        RMB     32
+STACK   RMB     1               ;* (D07F) Top of RAM (6810 @ $D000)
+        RMB     8
 ;USTKPTR RMB     2               ;* Now $73A0
 ;        RMB     32
 	
@@ -238,12 +241,14 @@ USR2    RMB     2               ;* njc, my stuff
 X76E9   RMB     2               ;* $76E9 now $73C2
 X76EB   RMB     1               ;* $76EB now $73C4
 BRTMP
-X76EC   RMB     1               ;* $76EC now $73C5
-X76ED   RMB     1               ;* $76ED
-X76EE   RMB     13              ;* $76EE
-X76FB   RMB     1               ;* $76FB
+;X76EC
+;NEXT    RMB     1               ;* $76EC now $73C5
+;X76ED   RMB     1               ;* $76ED
+;X76EE
+;SAVINST RMB     13              ;* $76EE Inst replaced by SWI
+;X76FB   RMB     1               ;* $76FB INSTR @D044
 X76FC   RMB     1               ;* $76FC
-X76FD   RMB     2               ;* $76FD
+;USERPC   RMB     2              ;* $76FD
 
 X76FF   RMB     2               ;* $76FF Some vect (puts MAIN here #7500)
 X7701   RMB     1               ;* $7701
@@ -265,7 +270,7 @@ X770D   RMB     2               ;* $770D
 ;xUSRSTK
 xX770F   RMB     2               ;* $770F USRSTK (which is also elsewhere)
 TMPSTR                          ;        now $73EA
-X7711   RMB     1               ;* $7711
+;X7711   RMB     1               ;* $7711
 X7712   RMB     1               ;* $7712
 
 DUMMY   RMB     2
@@ -312,7 +317,10 @@ ROMBEG
         if       mompass=1
         warning "JMP Table needs review"
         endif
-;                               ;* 6803         6809
+;*
+;* MIKBUG Compatible jump table (needs work)
+;*
+;*                               ;* 6803         6809
 MAIN:	jmp	RESTART         ;* L7533  -  1  RESTRT
 	jmp	NXTCMD          ;* NXTCMD  -  2  WARMST
 	jmp	INEEE           ;* L7733  -  3  NXTCMD (NextCmd?)
@@ -584,8 +592,10 @@ L4504:  FCC     "EX"            ; Exit to BASIC
         FDB     FMINST          ; $7E3E
         FCC     "GO"            ; 
         FDB     GOINST          ; 
+    ifdef       HD
         FCC     "HD"            ; Hex Dump
         FDB     HDINST          ; $7C85
+    endif
         FCC     "HE"            ; Help
         FDB     HEINST          ; $7F4A
         FCC     "JU"            ; Jump (actually JSR)
@@ -781,7 +791,6 @@ OUTS:	ldaa	#SPACE          ; (L 76DA:)
         ;; JU - JUMP to user program
         ;; 
 JUINST: bsr	BADDR           ; Get the address and put it in X (L 768A)
-;	lds	#SP             ; $7FFF
 	lds	SP              ; $7FFF
 	jsr	0,X		; JUMP to the User program (INFO: index jump)
 	jmp	WARMST          ; (L 756A)
@@ -803,11 +812,12 @@ GOINST: ;ldx     PC              ;
         ;;
         ;; JU - JUMP to user program
         ;; 
-PCINST: ;ldx     PC              ;
-;	lds	#SP             ; $7FFF
-	;lds	SP              ; $7FFF
-	;jsr	0,X		; JUMP to the User program (INFO: index jump)
-	jmp	WARMST          ; (L 756A)
+PCINST  stx     SAVEX           ;* Save the X
+        ldx     #PC
+        jsr     OUT2H
+        jsr     OUT2H
+	ldx     SAVEX
+        rts
 ; ------------------------------------------------------------------------------
 ; -[ Storage: 76E8 - 7716 = 2E ]------------------------------------------------
 ; ------------------------------------------------------------------------------
@@ -831,7 +841,7 @@ PCINST: ;ldx     PC              ;
 ;
 ;X76FB:	db	$00
 ;X76FC:	db	$00
-;X76FD:	db	$00, $00
+;USERPC:	db	$00, $00
 ;X76FF:	db	$00, $00        ; On init this gets clr'd (2Byte)
 ;X7701:	db	$00             ; On init this gets clr'd (1Byte)
 ;COLDSTF db	$75, $7B        ; Humbug+ str addr (X7702)
@@ -868,15 +878,15 @@ PCINST: ;ldx     PC              ;
         ;;
         ;; 
         IFDEF   UNTRUE
-;X7711:	stx	XFF8D
+;X 7711:	stx	XFF8D
 ;
 ;	byt	$02
 ;
 ;	bra	PDATA
 	ELSEIF
-;X7711:
+;X 7711:
 ;TMPSTR: rmb     1               ;* Temp storage?
-;X7712:  rmb     5
+;X 7712:  rmb     5
         ENDIF
 ; ------------------------------------------------------------------------------
 ; ------------------------------------------------------------------------------
@@ -1426,62 +1436,64 @@ EXINST  ldx	#MAIN           ; $7500 COLDST
 L79B4:  
 DEINST: jsr	FROMTO          ; (L 7957)
 	ldx	BEGA            ;* X7705
-	stx	X7711
+	stx	SAVEX
 L79BD:
-DE1	bsr	DE2             ;* L79CE
-	ldaa	ENDA            ;* USRSTK2         ; X7707
-	ldab	ENDA+1          ;* X7708
-	subb	X7712           ; subd  X7711
-	sbca	X7711
-	bcc	DE1             ;* L79BD
-	rts
-;
-L79CE:
-DE2	jsr	CRLF            ;* L7717
-	ldx	#X7711
-	jsr	OUT4HS          ; (L 76D6)
-	jsr	OUTS            ; (L 76DA)
-	ldx	X7711
-	ldaa	0,X
-	staa	X76FB
-	jsr	OUT2HS          ; (L 76D8)
+DE1	bsr	PRNTOP          ;* Goto to print current line (L79CE)
+	ldaa	ENDA            ;* Subtract next from last (X7707)
+	ldab	ENDA+1          ;* (X7708)
+	subb	SAVEX+1         ;* (X7712)
+	sbca	SAVEX           ;* 
+	bcc	DE1             ;* Return if next <= last (L79BD)
+	rts                     ;* Otherwise exit
+;*
+;* PRNTOP - Subroutine to print address and current instruction
+;*
+L79CE
+PRNTOP
+DE2	jsr	CRLF            ;* (L7717)
+	ldx	#SAVEX          ;* Set location of next address
+	jsr	OUT4HS          ;* Print it (L76D6)
+	jsr	OUTS            ;* (L76DA)
+	ldx	SAVEX           ;* Get address of instruction
+	ldaa	0,X             ;* Get operation code
+	staa	INSTR           ;* Save it
+	jsr	OUT2HS          ;* Print it (L76D8)
 L79E5:
-DE3	stx	X7711
-	clrb
-	ldaa	X76FB
-	anda	#$BF
+DE3	stx	SAVEX           ;* Increment SAVEX
+	clrb                    ;* Byte counter
+	ldaa	INSTR           ;*
+	anda	#$BF            ;* Analyze DP code for no. of bytes
 	cmpa	#$83            ;
-	beq	DE4             ;* L7A0B
+	beq	LENGTH3         ;* L7A0B
 	anda	#$FD
 	cmpa	#$8C            ;
-	beq	DE4             ;* L7A0B
-	ldaa	X76FB
+	beq	LENGTH3         ;* L7A0B
+	ldaa	INSTR
 	anda	#$F0
 	cmpa	#$20
-	beq	DE5             ;* L7A0C
+	beq	LENGTH2         ;* L7A0C
 	cmpa	#$60
-	bcs	DE6             ;* L7A0D
+	bcs     LENGTH1         ;* L7A0D
 	anda	#$30
 	cmpa	#$30
-	bne	DE5             ;* L7A0C
-L7A0B:
-DE4	incb
-L7A0C:
-DE5	incb
-L7A0D:
-DE6	stab	X76FC
-	beq	DEEXIT          ;* L7A22
-	dec	X76FC
-	beq	DE7             ;* L7A1C
-	jsr	OUT4HS          ; (L 76D6)
-	bra	DE8             ;* L7A1F
-;
-L7A1C:
-DE7	jsr	OUT2HS          ; (L 76D8)
-L7A1F:
-DE8	stx	X7711
-L7A22:
-DEEXIT	rts
+	bne	LENGTH2         ;* L7A0C
+L7A0B
+DE4
+LENGTH3	incb                    ;* 3-byte: 8C,*E,CE,7x,Bx,Fx
+L7A0C
+DE5
+LENGTH2	incb                    ;* 2-byte: 2x,6x,8x,9x,Ax,C,Dx,Ex
+L7A0D
+DE6
+LENGTH1	stab	COUNT           ;* 1-byte: 1x,3x,4x,5x (X76FC)
+	beq	POP3            ;* (L7A22)
+	dec	COUNT           ;* (X76FC)
+	beq	POP2            ;* (L7A1C)
+	jsr	OUT4HS          ;* (L76D6)
+	bra	POP2            ;* (L7A1F)
+POP1	jsr	OUT2HS          ;* (L7A1C)
+POP2	stx	SAVEX           ;* (L7A1F)
+POP3	rts                     ;* (L7A22)
 ;
 ; ------------------------------------------------------------------------------
 	;; 
@@ -1562,7 +1574,7 @@ BKEXIT: rts
 L7A90:
 BPINST: ldab	#$30            ; BP Number in ASCII '0'
 	ldx	#BKTAB          ; ($ 76EF)
-	stx	X7711           ;* Tmp storage ?
+	stx	SAVEX           ;* Tmp storage ?
 L7A98:
 BPR1:   incb
 	cmpb	#$35            ;* Stop at 5 BPs (isn't it actual 4?)
@@ -1573,7 +1585,7 @@ L7A9E:
 BPR2:   jsr	CRLF            ; Print CR/LF (L 7717)
 	tba                     ; GET BP NUMBER
 	jsr	OUTEEE          ; PRINT BP NUMBER (L 7769)
-	ldx	X7711           ; GET BP ADDRESS
+	ldx	SAVEX           ; GET BP ADDRESS
 	ldaa	0,X           ; GET BP ADDRESS
 	cmpa	#$FF            ; IS THERE ONE?
 	bne	BPR3            ; YES, GO PRINT IT (L 7AB3)
@@ -1584,11 +1596,11 @@ BPR2:   jsr	CRLF            ; Print CR/LF (L 7717)
 ;
 L7AB3:
 BPR3:   jsr	OUTS            ; PRINT SPACE (L 76DA)
-	ldx	X7711
+	ldx	SAVEX
 	jsr	OUT4HS          ;* PRINT ADDRESS OF BP (L 76D6)
 	jsr	OUT2HS          ;* PRINT OP CODE (L 76D8)
 L7ABF:
-BPR4:   stx	X7711
+BPR4:   stx	SAVEX
 	bra	BPR1            ;* Next BP (L 7A98)
 ; -[ SWIHDLR ]------------------------------------------------------------------
 ;*
@@ -1628,11 +1640,11 @@ SWIHDLR
 SFE	STS	SP	;* SAVE TARGET'S STACK POINTER
 ;*
 ;*	DECREMENT P-COUNTER
-	TSX
-	TST	6,X
-	BNE	SFE1            ;* *+4
-	DEC	5,X
-SFE1	DEC	6,X
+;	TSX
+;	TST	6,X
+;	BNE	SFE1            ;* *+4
+;	DEC	5,X
+;SFE1	DEC	6,X
 ;*
 ;*	PRINT CONTENTS OF STACK
 ;*
@@ -1834,198 +1846,267 @@ REGST   fcc     "REG: \4"       ;* L7B5B
 WTFST   fcc     'CBAXPS'        ;* L7B61 db  $43. $42, $41, $58, $58 $40 = CBAXX@
 
 ;* -----------------------------------------------------------------------------
-L7B67
-COINST: lds	SP              ; X770F
+COINST  lds	SP              ; X770F
 	rti                     ; $3B
 ;
-L7B6B:  nop
-L7B6C:
 SFRMST  fcc     "START FROM ADDRESS: \4"
 ;*
 ;* @FIXME: This needs major work! The Xxxx and Lxxx ops are many
+;*
+;* Okay in oder to single step what do we need?
+;* 1. Starting address in the PC
+;* 2. decode of the instruction so we can save and add an SWI after
+;* 3. The SWI inserted and the original code saved
+;*
+;* Thoughts 13 - Pg 119
+;* ... I (Peter) also treat the stack differently. MIKBUG and SWTPC bug always
+;* initiaize the stack wehn they started up at A042 and down. The G command then
+;* loads the next seven bytes into the CPU registers and jumps to the user code
+;* with the stack pointer pointing to A049. So, in a way, we can think of the
+;* area below A042 as being a monitor stack, while the area just below A049 as
+;* a user stack.
 ;*
 L7B81:
 STINST: ldx	#SFRMST         ; $7B6C
 	jsr	PDATA
 	jsr	BADDR           ;* L768A
-	stx	X7FFC
-	ldx	#WARMST         ; $756A
-	stx	X7FFE
-	ldx	#X7FF6          ; $7FF6
-	stx	SP              ; X770F
-L7B99:  
-SSINST: ldx	SP              ; X770F
+        ;;*
+        ;;* I should store X STACK+6 (PC) as if we just hit an SWI and everything
+        ;;* was pushed on the STACK (which is now STACK-7)
+        ;;* A042 - Mon stack
+        ;;* A049 - Usr stack
+        ;;*
+	stx	$A042+6         ;* @FIXME: might not be correct (X7FFC was BEGA)
+	ldx	#WARMST         ;* (L756A)
+;*
+;* This is probably the return address when the User code is done (rts'd?)
+;*
+	stx	ENDA            ;* @FIXME: might not be correct (X7FFE)
+	ldx	#STACK          ;* (X7FF6)
+	stx	SP              ;* (X770F)
+;*
+;* @FIXME: This needs major work! The Xxxx and Lxxx ops are many
+;*
+L7B99
+;*
+;* @FIXME: I don't undertand this: ldx 6,X (X = @SP)
+;*
+SSINST  ldx	SP              ; X770F
 	ldx	6,X
-	stx	X76FD
-	stx	X7711
-	jsr	L79CE
-	stx	X76EC
-	ldaa	0,X
-	staa	X76EE
-	ldaa	#$3F            ; ?
-	staa	0,X
-	cmpa	0,X
-	bne	L7BF0
-	ldaa	X76FB
-	cmpa	#$20            ; Space?
-	bcs	L7BC2
-	cmpa	#$30            ; 0
-	bcs	L7C34
-L7BC2:
-	cmpa	#$39            ; 9
-	bne	L7BC9
-	jmp	L7C7E
+	stx	USERPC          ;* USERPC @D02E
+	stx	SAVEX           ;* SAVEX  @D02C
+	jsr	PRNTOP          ;* Print Address and Instruction (L79CE, DE2)
+	stx	NEXT            ;* NEXT   @D030 (X76EC)
+	ldaa	0,X             ; Get current insruction
+	staa	SAVINST         ; Save it
+	ldaa	#SWIINST        ; $3F Replace with SWI
+	staa	0,X             ; Replace instruction with SWI
+	cmpa	0,X             ; Check it
+	bne	NOGOOD          ;*
+	ldaa	INSTR           ;* INSTR @D044 Set op code
+	cmpa	#$20            ;*
+	bcs	NOBR            ;* No Branch (L7BC2)
+	cmpa	#$30            ;* [A] - data8 If A < 30 set Carry
+	bcs	YESBR           ;* Yes (L7C34) Branch if carry set
+L7BC2
+NOBR                            ;* This is Pete's name
+SS1	cmpa	#$39            ;* Check for rts
+	bne	NOTRTS          ;* No (L7BC9)
+	jmp	RTSIN           ;* Yes (L7C7E)
 ;
-L7BC9:
-	cmpa	#$3B            ; ';'
-	beq	L7BF0
-	cmpa	#$3F            ; '?'
-	beq	L7BF0
-	cmpa	#$6E            ; 'n'
-	bne	L7BD8
-L7BD5:
-	jmp	L7C6D
+L7BC9
+NOTRTS
+SS2	cmpa	#$3B            ;*
+	beq	NOGOOD          ;* Don't Do RTI
+	cmpa	#$3F            ;*
+	beq	NOGOOD          ;* Ditto for SWI
+	cmpa	#$6E            ;*
+	bne	NOTJIN          ;* L7BD8
+L7BD5
+JINV
+SS3	jmp	JINDEX          ;* Ok for indexed jumps (L7C6D)
 ;
-L7BD8:
-	cmpa	#$AD
-	beq	L7BD5
-	cmpa	#$7E
-	beq	L7C5B
-	cmpa	#$BD
-	beq	L7C5B
-	cmpa	#$8D
-	beq	L7C34
-	cmpa	#$9D
-	beq	L7C62
-	cmpa	#$3E
-	bne	L7C05
-L7BF0:
-	ldx	#NOST           ; $7C01
-	jsr	PDATA
-	ldx	X76EC
-	ldaa	X76EE
-	staa	0,X
-	jmp	NXTCMD
+L7BD8
+NOTJIN
+SS4	cmpa	#$AD
+	beq	JINV            ;* Ditto (L7BD5)
+	cmpa	#$7E            ;*
+	beq	JEXT            ;* Ok for Extended jumps (L7C5B)
+	cmpa	#$BD            ;*
+	beq	JEXT            ;* Ditto (L7C5B)
+	cmpa	#$8D            ;*
+	beq	YESBR           ;* BSR is a branch too (L7C34)
+    ifdef MC10                  ;* 6801 jsr instruction, otherwise HCF (slow?)
+	cmpa	#$9D            ;* ???
+	beq	JSRIN           ;* (L7C62)
+    endif
+	cmpa	#$3E            ;*
+	bne	NORMAL          ;* Ok if not WAI (L7C05)
+;*
+;* Refuse to di some instructions
+;*
+L7BF0
+;*
+;* @FIXME: Can't step to next instruction
+;* SS  puts the SWI on the next instruction (good) but it doesn't fix the
+;* SWI it stopped on. 
+;*
+;* SWIHANDLER doesn't restore INST (replace SWI with INST). That's normal
+;* But SS needs this as it's stepping each instruction
+;*
+;* Thoughts 14 - Pg 189  Listing 20
+;*
+NOGOOD
+SSEXIT	ldx	#NOST           ; $7C01
+	jsr	PDATA           ;* Print "NO!"
+	ldx	NEXT            ;* NEXT @D030 (X76EC)
+	ldaa	SAVINST         ;* NEXT+2 @D032 (X76EE)
+	staa	0,X             ;* Restore next instr on error
+	jmp	NXTCMD          ;* Next command
 ;
 L7C01:
 NOST    fcc     "NO!\4"
 
 ;* -----------------------------------------------------------------------------
-L7C05:
-	ldaa	#$FF
-	staa	X76E9
-L7C0A:
-	ldx	#L7C14          ;* Some kind of Interrupt handler
+L7C05
+NORMAL
+SS5	ldaa	#$FF            ;* Erase alt address loc
+	staa	BRANCH          ;* (X76E9)
+L7C0A
+GOUSER
+SS6	ldx	#SSRETN         ;* Redirect SWI return (L7C14)
     IFDEF       MC10
 	stx	X4210           ;*
+    ELSE
+        stx     SWIJMP
     ENDIF
-	lds	SP              ; X770F
-	rti
+	lds	SP              ; set user stack (X770F)
+	rti                     ; Go to user
 
 ;* -----------------------------------------------------------------------------
 ; Is this L7C14?
-L7C14	ldx	SWIHDLR         ; #$7AC4
+L7C14
+SSRETN	ldx	SWIHDLR         ; #$7AC4
     IFDEF       MC10
 	stx	X4210
+    ELSE
+        stx     SWIJMP
     ENDIF
-	ldx	X76EC
-	ldaa	X76EE
+	ldx	NEXT            ;* (X76EC)
+	ldaa	SAVINST         ;* (X76EE) SAVINST == NEXT+2
 	staa	0,X
-	ldaa	X76E9
+	ldaa	BRANCH          ;* Check branch addr (X76E9)
 	cmpa	#$FF
-	beq	L7C31
-	ldx	X76E9
-	ldaa	X76EB
+	beq	NONE            ;* (L7C31)
+	ldx	BRANCH          ;* Restore it (X76E9)
+	ldaa	BRANCH+2        ;* Next instruction??? (X76EB)
 	staa	0,X
-L7C31:
-	jmp	SWIHDLR         ; L7AC4
+L7C31
+NONE
+	jmp	SWIHDLR         ; Store stack ptr & print registers (L7AC4)
+;*
+;* Handle Effective address of branch
 ;
-L7C34:
-	ldx	X76FD
-	ldab	1,X
-	beq	L7C41
-	bmi	L7C55
-L7C3D:
-	inx
+L7C34
+YESBR	ldx	USERPC          ;*
+	ldab	1,X             ;* Get offset
+	beq	ZEROOF          ;* Zero offset (L7C41)
+	bmi	MINOFF          ;* Minus offset (L7C55)
+;*
+;* Plus offset
+;*
+L7C3D
+PLUSOF	inx
 	decb
-	bne	L7C3D
-L7C41:
-	inx
-	inx
+	bne	PLUSOF          ;* (L7C3D)
+L7C41
+ZEROOF	inx                     ;* Point to next instruction
+	inx                     ;*
 L7C43:
-	stx	X76E9
-	ldaa	0,X
-	staa	X76EB
-	ldaa	#$3F
-	staa	0,X
-	cmpa	0,X
-	beq	L7C0A
-	bra	L7BF0
+GOTADD	stx	BRANCH          ;* Save address (X76E9)
+	ldaa	0,X             ;* Get instruction
+	staa	BRANCH+2        ;* Save it (X76EB)
+	ldaa	#_SWI           ;* $3F
+	staa	0,X             ;* Substitute WI
+	cmpa	0,X             ;* Check that it went in
+	beq	GOUSER          ;* Go to user if ok (L7C0A)
+	bra	NOGOOD          ;* If it didn't store properly (SSEXIT)
+;*
+;* Minus offset
+;*
+L7C55
+MINOFF	dex                     ;* Subtract offset
+	incb                    ;* From instruction address
+	bne	MINOFF          ;* (L7C55)
+	bra	ZEROOF          ;* (L7C41)
 ;
-L7C55:
-	dex
-	incb
-	bne	L7C55
-	bra	L7C41
-;
-L7C5B:
-	ldx	X76FD
-	ldx	1,X
-	bra	L7C43
-;
-L7C62:
-	ldx	X76FD
+L7C5B
+JEXT	ldx	USERPC          ;*
+	ldx	1,X             ;* Get extended jump address
+	bra	GOTADD          ;* Go take care of it (L7C43)
+;* -[ 6801 ]--------------------------------------------------------------------
+    ifdef MC10                  ;* 6801 jsr instruction
+L7C62
+JSRIN	ldx	USERPC
 	ldab	1,X
 	ldx	#$00
 	abx
 	bra	L7C43
-;
-L7C6D:
-	ldx	X76FD
-	ldab	1,X
-	ldx	SP              ; X770F
-	ldx	4,X
-	dex
-	dex
-	tstb
-	beq	L7C41
-	bra	L7C3D
-;
-L7C7E:
-	ldx	SP              ; X770F
-	ldx	8,X
-	bra	L7C43
-                                ;
-        ;; HD
+    endif
+;* -----------------------------------------------------------------------------
+;*
+;* Handle Indexed jump
+;*
+L7C6D
+JINDEX	ldx	USERPC           ;*
+	ldab	1,X              ;* Get offset
+	ldx	SP               ;* (X770F)
+	ldx	4,X              ;* Get user Index register
+	dex                      ;*
+	dex                      ;* Point to 2 bytes under
+	tstb                     ;*
+	beq	ZEROOF           ;* If offset is zero (L7C41)
+	bra	PLUSOF           ;* If offset is nonzero (L7C3D)
+;*
+;* Handle RTS instruction
+;*
+L7C7E
+RTSIN	ldx	SP               ;* Get user stack pointer X770F
+	ldx	8,X              ;* Get return address from suer's stack
+	bra	GOTADD           ;* And treat it as a jump (L7C43)
+
+    ifdef       HD
+;* -----------------------------------------------------------------------------
+;; HD
 L7C85:
 XDINST: 
 HDINST: jsr	FROMTO          ;* GET ADDRESSES (L 7957)
 	ldx	BEGA            ;* GET STARTING ADDRESS (X 7705)
-	stx	SAVEX           ;* Art: SAVEX (X7711)
+	stx	SAVEX           ;* Art: SAVEX (SAVEX)
 	stx	X770B           ;* Art: doesn't have this
 	bra	HD1             ;* Art: has HEXCON ;* L7C96
 ;
 	staa	SAVEX+1         ;* X7712
 L7C96
 HD1	jsr	CRLF            ; (L 7717)
-	ldx	#SAVEX          ;* X7711
+	ldx	#SAVEX          ;* SAVEX
 	jsr	OUT4HS          ; (L 76D6) Addr
 	tst	OUTS            ; (X 76DA) Spaces
 	ldab	#$04            ;* ???
-	ldx	SAVEX           ;* X7711
+	ldx	SAVEX           ;* SAVEX
 L7CA7
 HD2	jsr	OUT2H           ; (L 76CD)
 	decb
 	bne	HD2             ;* L7CA7
-	stx	SAVEX           ;* X7711
+	stx	SAVEX           ;* SAVEX
 	jsr	OUTS            ; (L 76DA)
 	ldab	#EOT            ; $04
-	ldx	SAVEX           ;* X7711
+	ldx	SAVEX           ;* SAVEX
 L7CB8:
 HD3	jsr	OUT2H           ; (L 76CD)
 	decb
 	bne	HD3             ;* L7CB8
-	stx	SAVEX           ;* X7711
+	stx	SAVEX           ;* SAVEX
 	bra	HD4             ;* L7CCE
 ;
 	ldaa	X770C
@@ -2061,36 +2142,36 @@ HD8	jsr	OUTEEE
 	decb
 	bne	HD5             ;* L7CDC
 	bra	HD1             ;* L7C96
-        ;; AD
+    endif
 
 ;* -[ AD - ASCII Dump ]---------------------------------------------------------
 ADINST: jsr	FROMTO          ;* GET ADDRESSES (L 7957)
 	ldx	BEGA            ;* GET STARTING ADDRESS (X 7705)
-	stx	SAVEX           ;* Art: SAVEX (X7711)
+	stx	SAVEX           ;* Art: SAVEX (SAVEX)
 	stx	X770B           ;* Art: doesn't have this
 	bra	AD1             ;* Art: has HEXCON ;* L7C96
 ;
 	staa	SAVEX+1         ;* X7712
 ;
 AD1	jsr	CRLF            ; (L 7717)
-	ldx	#SAVEX          ;* X7711
+	ldx	#SAVEX          ;* SAVEX
 	jsr	OUT4HS          ; (L 76D6) Addr
 	tst	OUTS            ; (X 76DA) Spaces
 	ldab	#$08            ;* First half of the 16 (Hex)
-	ldx	SAVEX           ;* X7711
+	ldx	SAVEX           ;* SAVEX
 
 AD2	jsr	OUT2H           ; (L 76CD)
 	decb
 	bne	AD2             ;* L7CA7
-	stx	SAVEX           ;* X7711
+	stx	SAVEX           ;* SAVEX
 	jsr	OUTS            ; (L 76DA)
 	ldab	#$08            ;* Second half of the 16 (Hex)
-	ldx	SAVEX           ;* X7711
+	ldx	SAVEX           ;* SAVEX
 
 AD3	jsr	OUT2H           ; (L 76CD)
 	decb
 	bne	AD3             ;* L7CB8
-	stx	SAVEX           ;* X7711
+	stx	SAVEX           ;* SAVEX
 	bra	AD4             ;* L7CCE
 ;
 	ldaa	X770C
@@ -2234,7 +2315,7 @@ FIINST: ldx	#MANYST         ; X7E33
 	ldx	#WHATST         ; X7950
 	jsr	PDATA
 	ldab	X76E9
-	ldx	#X76EC
+	ldx	#NEXT           ;* (X76EC)
 L7DDA:
 	pshb
 	jsr	BYTE
@@ -2249,32 +2330,32 @@ L7DDA:
 L7DEE:
 	ldab	X76E9
 	ldaa	0,X
-	cmpa	X76EC
+	cmpa	NEXT            ;* (X76EC)
 	bne	L7E28
 	decb
 	beq	L7E0C
 	ldaa	1,X
-	cmpa	X76ED
+	cmpa	NEXT+1          ;* (X76ED)
 	bne	L7E28
 	decb
 	beq	L7E0C
 	ldaa	2,X
-	cmpa	X76EE
+	cmpa	SAVINST         ;* (X76EE)
 	bne	L7E28
 L7E0C:
-	stx	X7711
+	stx	SAVEX
 	bsr	L7E30
-	ldx	#X7711
+	ldx	#SAVEX
 	bsr	L7E74
 	jsr	OUTS            ; (L 76DA)
-	ldx	X7711
+	ldx	SAVEX
 	dex
 	ldab	#$04
 L7E1F:
 	jsr	OUT2HS          ; (L 76D8)
 	decb
 	bne	L7E1F
-	ldx	X7711
+	ldx	SAVEX
 L7E28:
 ;	cpx	USRSTK2         ; X7707
 	cpx	ENDA            ; X7707
@@ -2317,9 +2398,9 @@ L7E5F:
 	bra	L7E5F
 ;
 L7E6B:
-	staa	X7711
+	staa	SAVEX
 	stab	X7712
-	ldx	#X7711
+	ldx	#SAVEX
 L7E74:
 	jmp	OUT4HS          ; L76D6
 ;
@@ -2355,7 +2436,7 @@ L7E77:
 AIINST: jsr	FROMTO          ; L7957
 	jsr	CRLF            ; L7717
 	ldx	ENDA            ;* USRSTK2         ; X7707
-	stx	X7711
+	stx	SAVEX
 	ldx	BEGA            ;* X7705
 	dex
 L7E87:
@@ -2365,7 +2446,7 @@ L7E87:
 	cmpa	0,X
 	bne	L7E99
 	stx	ENDA            ;* USRSTK2         ; X7707
-	cpx	X7711
+	cpx	SAVEX
 	bne	L7E87
         rts
 
