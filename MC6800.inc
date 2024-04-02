@@ -56,6 +56,7 @@ printf1 MACRO   op
         ;; stx	#$8000
 	;; addr 80 = HiByte $12 ; Xhi (A)
         ;; addr 81 = LoByte $34 ; xLo (B)
+; @FIXME: backwards?
 pushx   MACRO                   ;m Actually gets X on the stack
         stx     SAVEX           ;m save X to tmp
         ldaa    SAVEX           ;m Xhi
@@ -69,10 +70,11 @@ pshx    MACRO                   ;m Save X to memory
 
 ;* Currently working on this
 ;* Need a way to transfer B:A to X
-;* then puld
+;* then puld @FIXME: backwards?
 pullx   MACRO                   ;m Actually gets X off the stack
-        pulb                    ;m
-        pula                    ;m This is also puld
+        ;pulb                    ;m
+        ;pula                    ;m This is also puld
+        puld
         staa    SAVEX           ;m Xhi
         stab    SAVEX+1         ;m Xlo
         endm
@@ -80,15 +82,25 @@ pullx   MACRO                   ;m Actually gets X off the stack
 pulx    MACRO                   ;m Restores X from memory
         ldx     SAVEX           ;m
         ENDM
-
-pshd    MACRO                   ;m Pushes A+B onto the stack
+        ;; * Oops backwards
+Xpshd    MACRO                   ;m Pushes A+B onto the stack
         psha                    ;m SP-2
         pshb                    ;m SP-1
         ENDM
-
-puld    MACRO                   ;m Pulls B=A from the stack
+; Oops backwards
+Xpuld    MACRO                   ;m Pulls B=A from the stack
         pulb                    ;m
         pula                    ;m
+        ENDM
+
+pshd    MACRO                   ;m Pushes A+B onto the stack
+        pshb                    ;m SP-2
+        psha                    ;m SP-1
+        ENDM
+
+puld    MACRO                   ;m Pulls B=A from the stack
+        pula                    ;m
+        pulb                    ;m
         ENDM
 
 ;*
