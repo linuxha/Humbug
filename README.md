@@ -51,6 +51,29 @@ being self modifiying code. But progress is being made on both subjects.
 
 # History
 
+April 24, 2024
+
+I took a different route to solve the problems I've been running into.
+I took the version 2 MIKBUG and started adding the Humbug features.
+I've successfully got the Break and Single Step working. I call the
+monitor [modbug](https://github.com/linuxha/modbug). At the moment
+there is no logic to its layout. I'm cleaning it up, fixing a few bugs
+and I'll continue to add more features. When done I'll clean up 6800
+Humbug and MC10 Humbug. The modbug code hasn't made it over to here
+yet. I just didn't want folks to think I've given up on the Humbug
+code. It's sprint, I like to ride my bike, my house needs my attention
+and I still like to code. So I'm a little busy (of course).
+
+April 06, 2024
+
+Well I'm totally confused. 2 steps forward and 20 steps back. No clude
+what I did, what I fixed and what I broke.
+
+April 2, 2024
+
+Well the jokes on me, SS kinda works. Still that's something. Now I
+need to figure out the kinda part and make it just work.
+
 April  1, 2024
 
 Yeah, April 1 but no joke. I think I have SS working now. Yea! I went
@@ -142,17 +165,17 @@ Anything that has been checked (X) is running okay but not heavily tested. Evert
 - [X] MC - Memory Compare
 - [X] ME - Memory Examine/Edit
 - [X] MM - Memory Move
-- [ ] MT - Memory Test
+- [X] MT - Memory Test
 - [X] PC - Printe contents of PC/A048 (used with GO command)
 - [X] PU - Punch S1
 - [X] RC - Register Change
 - [X] RE - Register Examine
 - [ ] SA - CSAVEM to cassette (MC10)
-- [X] SS - Single Step (lots of limitations, careful)
+- [ ] SS - Single Step (lots of limitations, careful)
 - [ ] ST - Start SS (if no Breakpoint)
 - [X] !! - Monitor Reset (Cold start)
-- [X] U1 - User 1
-- [X] U2 - User 2
+- [X] UA - User A
+- [X] UB - User B
 - [ ] FL - Boot Flex (not written)
 - [ ] OS - Boot other OS (not written)
 
@@ -183,6 +206,26 @@ Not written and MC10 code are not include yet.
 | s0.sh               | Script to generate S0 header                               |
 | smithbug.inc        |                                                            |
 
+# Requires software
+
+srecord
+ASL Macro assembler ( http://john.ccac.rwth-aachen.de:8000/as/ )
+
+# Assemble
+
+If you are going to assemble the code manually.
+
+    VAR='_E000'
+    asl -i . -D ${VAR} -L modbug.asm
+    mv modbug.lst mb${VAR}.lst
+    p2hex +5 -F Moto -r \$-\$ modbug.p mb${VAR}.s19
+    srec_cat mb${VAR}.s19 -o hmb${VAR}.s19
+    echo "hmb${VAR}.s19"
+    memsim2 hmb${VAR}.s19
+
+    VAR='_E000';asl -i . -D ${VAR} -L modbug.asm; mv modbug.lst mb${VAR}.lst;p2hex +5 -F Moto -r \$-\$ modbug.p mb${VAR}.s19
+    srec_cat mb${VAR}.s19 -o hmb${VAR}.s19;echo "hmb${VAR}.s19";memsim2 hmb${VAR}.s19
+
 # Notes
 
 This is a Work In Progress, the base files (humbug-mc.asm & hb7500d.asm) are incomplete
@@ -196,6 +239,17 @@ I haven't documented the flags and the macros don't work with all addressing mod
 
 I will clean this up when done. I am trying to do that as I go along. I seem to be adding
 to the mess. ;-)
+
+    VAR='_E000';asl -i . -D ${VAR} -L hb7500.asm; mv hb7500.lst hb7500${VAR}.lst;p2hex +5 -F Moto -r \$-\$ hb7500.p hb7500${VAR}.s19
+    srec_cat hb7500${VAR}.s19 -o hb${VAR}.s19;echo "hb${VAR}.s19";memsim2 hb${VAR}.s19
+
+    VAR='_SIM';asl -i . -D ${VAR} -L hb7500.asm; mv hb7500.lst hb7500${VAR}.lst;p2hex +5 -F Moto -r \$-\$ hb7500.p hb7500${VAR}.s19
+    sim6800 hb7500_SIM.s19
+
+**Note:** I'm currently using all of E000 thru FFFF. yes I'm being
+sloppy but my EPROM emulator works nicely with this so I'll continue
+this. My ACIA is at $E000 and the PIA at $E004(?) or $E008. Code
+actually starts at $E100 and unused sections are filled with $FF.
 
 # Sources
 
