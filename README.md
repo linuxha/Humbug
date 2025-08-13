@@ -51,6 +51,16 @@ being self modifiying code. But progress is being made on both subjects.
 
 # History
 
+August 12, 2025
+
+Got a lot side tracked with my Mom's health and the addition of new
+toys. An Apple I (6502), 2 bare Apple I (one for 6502 & 0ne for a
+6800). I won't explain the why just that it's a distraction. But more
+importantly I have a 6800 Gimix Ghost and a 6800 SWTPC. I will get
+back to Humbug and Modbug so I can add it to both machines. I'll need
+to work out the disk drivers (and maybe a Fujinet like board). Anyway,
+this isn't forgotten just moved aside until I can focus on it again.
+
 April 24, 2024
 
 I took a different route to solve the problems I've been running into.
