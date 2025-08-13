@@ -543,13 +543,22 @@ DES2    jsr     PRNTOP          ;* Go to print current line
 ;;;* PRNTOP - subroutine to print address and current instruption
 PRNTOP  jsr     CRLF            ;*
         ldx     #SAVEX          ;* Get location of next address
+;*
+;* Print address
+;*
         jsr     OUT4HS          ;* Print it
         jsr     OUTS            ;*
         ldx     SAVEX           ;* Get address of instruction
         ldaa    0,X             ;* Get operation code
         staa    INSTR           ;* Save it
+;*
+;* Print op
+;*
         jsr     OUT2HS          ;* Print it
         stx     SAVEX           ;* Increment SAVEX
+;*
+;* Print args (if any)
+;*
         clr     B               ;* Byte counter
         ldaa    INSTR           ;*
         cmpa    #$8C            ;* Analyze Op code for nu of bytes
@@ -568,7 +577,7 @@ PRNTOP  jsr     CRLF            ;*
         bne     LENTH2          ;*
 LENTH3  inc     B               ;* 3-Byte: 8C, 8E, CE, 7x, Bx, Fx
 LENTH2  inc     B               ;* 2-Byte: 2x, 6x, 8x, 9x, Ax, Cx, Dx, Ex
-LENTH1  inc     B               ;* 1-Byte: 1x, 3x, 4x, 5x
+LENTH1  stab    COUNT           ;* 1-Byte: 1x, 3x, 4x, 5x (was inc B)
         nop                     ;*
         nop                     ;*
         beq     POP3            ;*
