@@ -145,17 +145,18 @@ abx     MACRO
 	warning "Check this 6800 code (was abx)"
         endif
 
-        pshb
+        ;pshb                   ;m Not needed
         psha
+        clrb                    ;m Needs to be cleared, we're only adding B
 
         stx     SAVEX           ;m Save X to SAVEX or XHI
         addb    SAVEX+1         ;m add X lo to B
         adca    SAVEX           ;m add the X hi + CC to A
 	std     SAVEX           ;m retore X
-        ldx     SAVEX           ;*
+        ldx     SAVEX           ;m
 
 	pula
-        pulb
+        ;pulb                   ;m Not needed
 
         ENDM
 
@@ -215,11 +216,11 @@ _SARG       set     substr(_SARG,1,strlen(_SARG)-1)
 _A          set     VAL(_SARG)
 _Hi         set     _A/255                              ; I could use HI()/LO() ...
 _Lo         set     ((_A&255)<<8)/255                   ; ... but need 'include bitfunc.inc'
-            suba    #_Hi
-            sbcb    #_Lo
+            subb    #_Hi
+            sbca    #_Lo
           else                ; absolute?
-            suba    ARG+1
-            sbcb    ARG
+            subb    ARG+1
+            sbca    ARG
           endif
         endm 
 ;       xsubd   $0007
@@ -268,7 +269,7 @@ _Lo         set     ((_A&255)<<8)/255                   ; ... but need 'include 
 
 ; BHS is an unofficial equivalent of BCC. It stands for Branch if Higher or Same.
 bhs     macro   op
-        bcc     op
+        bcc     op              ;* Branch Higher or Same
         endm
 
 ; Branch Greater than, equal
@@ -277,6 +278,16 @@ bge     macro   op
         bcc     op
         endm
 
+blo     macro   op
+        bcs     op              ;* Branch Lower
+        endm
+
+; Branch Greater than, equal
+;bge     macro   op
+;        printf1 "BGE Macro not built yet"
+;        bcc     op
+;        endm
+;
 ; Branch Greater than, equal
 ;bgt     macro   op
 ;        printf1 "BGT Macro not built yet"
